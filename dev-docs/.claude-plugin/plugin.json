@@ -1,0 +1,8 @@
+{
+  "name": "dev-docs",
+  "description": "Documentation skills — generate repo overviews, deep-dive arch docs, audit and maintain docs, scan repos for stale docs",
+  "author": {
+    "name": "Bud"
+  },
+  "skills": "./skills/"
+}

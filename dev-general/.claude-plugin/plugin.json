@@ -1,0 +1,8 @@
+{
+  "name": "dev-general",
+  "description": "General development skills — code review, PRD generation, and web research",
+  "author": {
+    "name": "Bud"
+  },
+  "skills": "./skills/"
+}
