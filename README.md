@@ -10,6 +10,19 @@ A collection of general-purpose plugins for the [Bud](https://github.com/vthunde
 
 ## Usage
 
+### Via `plugins.yaml` (recommended)
+
+Add this repo to your Bud plugin manifest at `state/system/plugins.yaml`:
+
+```yaml
+plugins:
+  - vthunder/useful-plugins
+```
+
+Bud will clone and load the repo automatically at startup.
+
+### Via `--plugin-dir`
+
 Clone this repo and add `--plugin-dir` to your Bud config:
 
 ```
