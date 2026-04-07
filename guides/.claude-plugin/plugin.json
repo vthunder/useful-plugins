@@ -1,0 +1,8 @@
+{
+  "name": "guides",
+  "description": "Knowledge guides and zettel library for Bud",
+  "author": {
+    "name": "Bud"
+  },
+  "zettels": "./zettels"
+}
