@@ -17,7 +17,7 @@ Check whether `state/projects/<name>/overview.md` exists. If it does, the repo i
 
 **Rule: never run `git mv`, `git add`, or `git commit` in `~/src/<repo>/` for a reference repo.**
 All audit operations (file moves, README writes, commits) must target `state/projects/<name>/` only.
-Use `git -C ~/src/bud2/state` for any git operations on reference repo docs.
+Use `git -C ~/Documents/bud-state` for any git operations on reference repo docs.
 
 This applies even when the source repo has a `docs/` directory — if `state/projects/<name>/overview.md` exists, treat it as a reference repo and keep all changes out of the source.
 
@@ -179,9 +179,9 @@ Default to `obsolete` when unsure. Do not add a status to non-archive files.
   ```
 
   **For reference repos** (`doc_dir = state/projects/<repo_name>/`):
-  Docs are tracked in the state git repo (`~/src/bud2/state`), not the source repo. Use:
+  Docs are tracked in the state git repo (`~/Documents/bud-state`), not the source repo. Use:
   ```bash
-  STATE_ROOT=~/src/bud2/state
+  STATE_ROOT=~/Documents/bud-state
   git -C $STATE_ROOT mv state/projects/<repo_name>/plans/2025-01-07-foo.md \
       "state/projects/<repo_name>/archive/plans/2025-01-07-foo (executed).md"
   ```

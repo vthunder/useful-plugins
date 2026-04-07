@@ -17,7 +17,7 @@ Check whether `state/projects/<name>/overview.md` exists. If it does, the repo i
 
 **Rule: never commit to `~/src/<repo>/` for a reference repo.**
 All documentation changes (writes, moves, commits) must go to `state/projects/<name>/` only.
-The state git repo (`~/src/bud2/state`) is the only repo that should ever receive doc commits for reference repos.
+The state git repo (`~/Documents/bud-state`) is the only repo that should ever receive doc commits for reference repos.
 
 When dispatching to sub-skills (`dev:repo-doc`, `dev:doc-audit`, `dev:arch-doc`), the sub-skill will perform its own reference-repo check — but you should pre-screen candidates here and exclude any reference repo from actions that would write to its source directory.
 

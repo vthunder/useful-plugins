@@ -13,7 +13,7 @@ Extract atomic knowledge from a `notes/` file into the zettelkasten. This skill 
 To find all notes that have NOT yet been migrated, run:
 
 ```bash
-grep -rL "migrated\|converted:" /Users/thunder/src/bud2/state/notes/*.md
+grep -rL "migrated\|converted:" /Users/thunder/Documents/bud-state/notes/*.md
 ```
 
 This catches all legacy marker variants (`<!-- migrated to zettel:`, `<!-- migrated:`, `<!-- converted:`). Files without any of these are candidates.
