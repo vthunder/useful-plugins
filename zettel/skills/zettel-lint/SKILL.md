@@ -10,22 +10,24 @@ Audit the zettel corpus for structural problems. Run periodically (every few wee
 
 ## Checks
 
-Run all five checks against `state/zettels/*.md`:
+Read `state/system/zettel-libraries.yaml` to get all registered library paths. If the file is absent, treat `state/zettels/` as the only library. Run all checks against all registered libraries.
 
 ### 1. Orphaned zettels
-A zettel with no incoming links — nothing in the corpus points to it. Likely too isolated to contribute to the knowledge web.
+A zettel with no incoming links — nothing in the corpus points to it via a `links:` field. Likely too isolated to contribute to the knowledge web.
+
+Orphan detection counts only `links:` fields (bidirectional links) and incoming `links:` references from other zettels within the same library. Do not flag a zettel as orphaned purely because it only appears in `external_links:` fields — cross-library references are intentionally one-way and do not count as incoming links.
 
 ```
-grep -rL "<id>" state/zettels/  # for each zettel, check if its id appears in any other zettel's links: or body
+grep -rL "<id>" <library-path>/  # for each zettel, check if its id appears in any other zettel's links: or body
 ```
 
-Report: list of orphaned zettel ids + titles.
+Report: list of orphaned zettel ids + titles (per library).
 Action: for each orphan, suggest either linking it into an existing cluster or reviewing whether it should exist.
 
 ### 2. Missing cross-references
-Pairs of zettels that share 2+ tags but are not linked to each other. Likely related but overlooked.
+Pairs of zettels within the **same library** that share 2+ tags but are not linked to each other. Likely related but overlooked. Cross-library pairs are intentionally linked one-way and should not be flagged here.
 
-For each pair with tag overlap ≥ 2: check if either links to the other.
+For each same-library pair with tag overlap ≥ 2: check if either links to the other.
 
 Report: list of unlinked pairs with shared tags.
 Action: prompt to run `zettel-link` on flagged pairs.
@@ -61,12 +63,18 @@ for each tag with count >= 5: check if state/zettels/moc-<tag>.md exists
 Report: list of tag clusters missing a MOC, with zettel count.
 Action: suggest running `zettel-index <tag>` for each flagged cluster.
 
+### 6. Broken external links
+
+For each zettel in each registered library that has an `external_links:` field, verify each listed ID exists in any registered library path. Report missing targets.
+
+Action: update or remove broken `external_links:` entries.
+
 ## Output format
 
 ```
 Zettel Lint Report — YYYY-MM-DD
 ================================
-Corpus: N zettels
+Corpus: N zettels (home: N, <library-name>: N, ...)
 
 ORPHANS (no incoming links): N
 - 20240312-slug — Title of orphaned zettel
@@ -84,6 +92,10 @@ TAG DRIFT (singleton tags): N
 
 MOC GAPS (dense tag clusters with no MOC): N
 - "memory-retrieval" — 8 zettels, no moc-memory-retrieval.md → run: zettel-index memory-retrieval
+
+BROKEN EXTERNAL LINKS: N
+- 20240401-slug — external_links: [20240210-missing-id] (not found in any library)
+  → Update or remove the broken entry
 
 All clear: No issues found.
 ```

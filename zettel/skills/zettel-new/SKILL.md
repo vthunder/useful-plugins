@@ -22,14 +22,17 @@ If the title reads like a folder name, reject it and ask for a specific claim.
 
 ## Steps
 
+0. **Resolve target library.** Read `state/system/zettel-libraries.yaml` if it exists. If a `library:` parameter was provided, find that library's path. Otherwise, use the library with `default: true` (falls back to `state/zettels/` if config absent). All writes go to `<resolved-library-path>/<id>.md`.
+
 1. **Search first.** Run `zettel-search` with the core concept. If strong overlap exists, link to existing instead of creating.
 2. **Gather info:**
    - Title (claim/concept — enforce the rule above)
    - Tags (2–5 lowercase kebab-case tags)
    - Links (slugs of related existing zettels)
    - Source file path (optional, relative to `state/`) if derived from a notes/ file
+   - Library (optional, overrides default library selection)
 3. **Generate ID:** `YYYYMMDD-slug` where slug is a short (2–5 word) kebab-case version of the title. Use today's date.
-4. **Write** to `state/zettels/<id>.md`:
+4. **Write** to `<resolved-library-path>/<id>.md`:
 
 ```markdown
 ---
@@ -44,7 +47,7 @@ created: YYYY-MM-DD
 Body: 50–200 words. Atomic — one idea per zettel. Self-contained: a reader should understand the idea without consulting the source. End with the implication or why this idea matters.
 ```
 
-5. **Bidirectional links.** For each zettel listed in `links:`, open that file and add the new zettel's slug to its `links:` frontmatter array (if not already present).
+5. **Bidirectional links.** For each zettel listed in `links:`, check which library it belongs to. If it is in the **same library** as the new zettel, open that file and add the new zettel's slug to its `links:` frontmatter array (if not already present). If the linked zettel is in a **different library**, add its ID to the new zettel's `external_links:` field instead — never edit files in external libraries (see zettel-link for cross-library link behavior).
 
 6. **MOC suggestions.** Run `Glob('state/zettels/moc-*.md')` to find existing Maps of Content. For each MOC whose topic matches the new zettel's tags, note it as a candidate. Surface 0–3 suggestions in this form:
 
