@@ -14,7 +14,7 @@ A tag name (e.g., `memory`, `act-r`, `spaced-repetition`).
 
 ## Steps
 
-1. **Find all matching zettels.** Grep `state/zettel/*.md` for `tags:` lines containing the given tag. Collect matching file paths. If zero match, report and stop.
+1. **Find all matching zettels.** Grep `state/zettels/*.md` for `tags:` lines containing the given tag. Collect matching file paths. If zero match, report and stop.
 
 2. **Read each zettel.** Extract:
    - `id`, `title`, `tags` (full list), `links`
@@ -22,7 +22,7 @@ A tag name (e.g., `memory`, `act-r`, `spaced-repetition`).
 
 3. **Group by sub-tag.** If zettels share a secondary tag (beyond the query tag), group them under that sub-tag as a section. Ungrouped zettels go under "General".
 
-4. **Write annotated MOC** to `state/zettel/moc-<tag>.md`:
+4. **Write annotated MOC** to `state/zettels/moc-<tag>.md`:
 
 ```markdown
 ---
@@ -49,13 +49,13 @@ A Map of Content for zettels tagged `<tag>`. Updated: YYYY-MM-DD. <N> zettels.
 
 5. **Link back.** Add `moc-<tag>` to the `links:` frontmatter of each zettel included in the MOC (if not already present).
 
-6. **Update INDEX.md.** If `state/zettel/INDEX.md` exists, check whether this MOC is already listed. If not, and if the topic is substantive (5+ zettels), suggest adding it.
+6. **Update INDEX.md.** If `state/zettels/INDEX.md` exists, check whether this MOC is already listed. If not, and if the topic is substantive (5+ zettels), suggest adding it.
 
-7. Confirm: "MOC written to `state/zettel/moc-<tag>.md` — <N> zettels."
+7. Confirm: "MOC written to `state/zettels/moc-<tag>.md` — <N> zettels."
 
 ## Notes
 
 - MOC files are zettels themselves — they participate in the link graph. Give them a proper `id: moc-<tag>` and frontmatter.
 - Do not regenerate automatically. MOCs are authored documents; overwriting one discards editorial work. Warn before overwriting an existing MOC.
 - If a MOC already exists for this tag, read it first. Prefer adding new entries to the existing MOC rather than regenerating from scratch.
-- `INDEX.md` is the start-here zettel listing major MOCs. It lives at `state/zettel/INDEX.md`.
+- `INDEX.md` is the start-here zettel listing major MOCs. It lives at `state/zettels/INDEX.md`.

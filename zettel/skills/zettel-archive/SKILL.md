@@ -12,7 +12,7 @@ Move an ephemeral `notes/` file to `notes/archive/`. Use for notes with no everg
 
 ## Steps
 
-1. **Check for zettel citations.** Grep `state/zettel/*.md` for the source file's path in any `source:` frontmatter field.
+1. **Check for zettel citations.** Grep `state/zettels/*.md` for the source file's path in any `source:` frontmatter field.
    - If found: update the `source:` path in those zettels to `notes/archive/<filename>`.
    - If not found: proceed.
 

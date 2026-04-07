@@ -6,12 +6,12 @@ user-invocable: true
 
 # zettel-search
 
-Search `state/zettel/` for existing coverage before creating new zettels. Prevents duplicates and surfaces links.
+Search `state/zettels/` for existing coverage before creating new zettels. Prevents duplicates and surfaces links.
 
 ## Steps
 
 1. Take the query string (concept, claim, or keyword).
-2. Run three searches against `state/zettel/*.md`:
+2. Run three searches against `state/zettels/*.md`:
    - Title match: grep the frontmatter `title:` field for query terms (case-insensitive)
    - Tag match: grep the `tags:` frontmatter line
    - Body match: full-text grep across zettel bodies

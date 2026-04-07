@@ -10,13 +10,13 @@ Audit the zettel corpus for structural problems. Run periodically (every few wee
 
 ## Checks
 
-Run all five checks against `state/zettel/*.md`:
+Run all five checks against `state/zettels/*.md`:
 
 ### 1. Orphaned zettels
 A zettel with no incoming links — nothing in the corpus points to it. Likely too isolated to contribute to the knowledge web.
 
 ```
-grep -rL "<id>" state/zettel/  # for each zettel, check if its id appears in any other zettel's links: or body
+grep -rL "<id>" state/zettels/  # for each zettel, check if its id appears in any other zettel's links: or body
 ```
 
 Report: list of orphaned zettel ids + titles.
@@ -55,7 +55,7 @@ Action: suggest merging with a similar existing tag or removing if the tag adds 
 Tags that appear in 5+ zettels but have no corresponding `moc-<tag>.md` file. These are dense clusters that have outgrown ad-hoc linking and warrant a Map of Content.
 
 ```
-for each tag with count >= 5: check if state/zettel/moc-<tag>.md exists
+for each tag with count >= 5: check if state/zettels/moc-<tag>.md exists
 ```
 
 Report: list of tag clusters missing a MOC, with zettel count.

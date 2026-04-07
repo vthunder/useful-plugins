@@ -10,11 +10,11 @@ Add a bidirectional link between two existing zettels.
 
 ## Input
 
-Two zettel identifiers — either full IDs (`20240312-act-r-activation`) or slugs (`act-r-activation`). If slugs are ambiguous, glob `state/zettel/*<slug>*` to resolve.
+Two zettel identifiers — either full IDs (`20240312-act-r-activation`) or slugs (`act-r-activation`). If slugs are ambiguous, glob `state/zettels/*<slug>*` to resolve.
 
 ## Steps
 
-1. **Resolve both files.** Find `state/zettel/<id-a>.md` and `state/zettel/<id-b>.md`. If either doesn't exist, stop and report which file is missing.
+1. **Resolve both files.** Find `state/zettels/<id-a>.md` and `state/zettels/<id-b>.md`. If either doesn't exist, stop and report which file is missing.
 
 2. **Check for existing link.** Read both files. If A already lists B in its `links:` and B already lists A in its `links:`, report "already linked" and stop.
 
