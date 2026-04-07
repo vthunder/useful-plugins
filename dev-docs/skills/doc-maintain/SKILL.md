@@ -13,7 +13,7 @@ Intended as an idle-fallback task: run this when no other queued work is pending
 ## What counts as "one meaningful improvement"
 
 In priority order:
-1. **Stale overview** — regenerate overview + doc-plan for a repo with >20 non-docs commits since last generation
+1. **Stale overview** — regenerate overview + doc-plan for a repo with ≥1 non-docs commit since last generation AND no new commits in the last 6 hours (repo is "settled")
 2. **Needs audit** — run doc-audit for a maintained repo that has never been audited (no `docs/archive/` dir and >5 non-generated docs)
 3. **Missing arch doc** — write the top-ranked missing arch-doc topic for a repo that already has a clean doc-plan
 
@@ -56,10 +56,22 @@ For the selected repo, determine which improvement to make (in priority order):
 
 | Condition | Action |
 |-----------|--------|
-| Stale overview (>20 commits) | Run `dev:repo-doc --autonomous` |
+| Stale overview (≥1 commit AND quiet ≥6h) | Run `dev:repo-doc --autonomous` |
 | Overview current, no audit run yet | Run `dev:doc-audit --autonomous` |
 | Overview current, audit done, top topic missing | Run `dev:arch-doc "<rank-1 topic>" --autonomous` |
 | Nothing applies | Report and stop |
+
+**Before executing**, also check for uncommitted changes in the selected repo:
+
+```bash
+git -C <repo_path> status --porcelain
+```
+
+If any uncommitted changes are detected, include this warning in the final report:
+```
+⚠️ <repo>: uncommitted changes detected — docs generated may not reflect all in-progress code
+```
+This does not block the action — proceed regardless.
 
 Only one action per invocation.
 

@@ -13,7 +13,8 @@ This is the cross-repo discovery companion to `dev:doc-audit` (which operates on
 ## Input
 
 - `--src` — optional path override. Default: `~/src/`.
-- `--stale-threshold` — number of non-docs commits before a repo is considered stale. Default: `10`.
+- `--stale-threshold` — minimum number of non-docs commits before a repo is considered stale. Default: `1`.
+- `--quiet-hours` — hours of commit inactivity before triggering a regen. Default: `6`.
 
 ## Steps
 
@@ -40,18 +41,39 @@ If neither exists → **undocumented**.
 
 ### 3. Check staleness for documented repos
 
-For repos that have docs, find the commit that last touched `overview.md` and count non-docs commits since:
+For repos that have docs, find the commit that last touched `overview.md`, count non-docs commits since, and check how recently the last commit landed:
 
 ```bash
 # Last commit to overview.md
 PLAN_COMMIT=$(git -C <repo_path> log --format="%H" -- docs/overview.md | head -1)
 
 # Non-docs commits since that point
-git -C <repo_path> log ${PLAN_COMMIT}..HEAD --oneline \
-  -- . ':(exclude)docs/' ':(exclude)*.md' | wc -l
+COMMITS_BEHIND=$(git -C <repo_path> log ${PLAN_COMMIT}..HEAD --oneline \
+  -- . ':(exclude)docs/' ':(exclude)*.md' | wc -l)
+
+# Unix timestamp of the most recent commit
+LAST_COMMIT_TS=$(git -C <repo_path> log -1 --format="%ct")
+
+# Seconds since last commit
+NOW_TS=$(date +%s)
+QUIET_SECS=$(( NOW_TS - LAST_COMMIT_TS ))
 ```
 
-If the count exceeds `--stale-threshold` (default 10) → **stale**. Otherwise → **current**.
+A repo is **stale** if:
+- `COMMITS_BEHIND >= stale_threshold` (default 1), AND
+- `QUIET_SECS >= quiet_hours * 3600` (default 6 hours — repo has been inactive long enough to regen safely)
+
+Otherwise → **current**.
+
+### 3b. Check for uncommitted changes
+
+For documented repos, also detect uncommitted work:
+
+```bash
+git -C <repo_path> status --porcelain
+```
+
+If any output is returned → flag this repo as having **uncommitted changes**. Include a warning in the report — this does not block staleness classification but is useful context.
 
 ### 4. Report
 
@@ -68,16 +90,21 @@ No docs found. Run `dev:repo-doc` to generate.
 | foo  | 2026-03-15  |
 
 ### Stale (N)
-Docs exist but are behind code commits.
+Docs exist but are behind code commits (≥1 commit, quiet ≥6h).
 
-| Repo | Docs Last Updated | Commits Behind | Action |
-|------|-------------------|----------------|--------|
-| bud2 | 2026-02-10        | 34             | `dev:repo-doc bud2` |
+| Repo | Docs Last Updated | Commits Behind | Quiet Since | Uncommitted | Action |
+|------|-------------------|----------------|-------------|-------------|--------|
+| bud2 | 2026-02-10        | 13             | 7h ago      | ⚠️ yes      | `dev:repo-doc bud2` |
 
 ### Current (N)
-| Repo | Docs Last Updated |
-|------|-------------------|
-| bar  | 2026-04-01        |
+| Repo | Docs Last Updated | Uncommitted |
+|------|-------------------|-------------|
+| bar  | 2026-04-01        | no          |
+```
+
+⚠️ **Uncommitted changes warning** — if any documented repo has uncommitted changes, call it out explicitly:
+```
+⚠️ <repo>: uncommitted changes detected — docs may not reflect latest code
 ```
 
 ### 5. Suggest next actions
