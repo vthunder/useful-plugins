@@ -6,6 +6,23 @@ user-invocable: true
 
 # repo-doc
 
+---
+
+## ⚠️ REFERENCE REPO GUARDRAIL — READ FIRST
+
+A **reference repo** is one where Bud tracks documentation externally. The source lives in `~/src/<name>/` but all docs live in `state/projects/<name>/`.
+
+**How to identify a reference repo:**
+Check whether `state/projects/<name>/overview.md` exists. If it does, the repo is a reference repo — even if `~/src/<name>/docs/` also contains files.
+
+**Rule: never commit to `~/src/<repo>/` for a reference repo.**
+All doc writes must go to `state/projects/<name>/`. Never run `git commit` in the source repo.
+The `--autonomous` flag does not override this — even in autonomous mode, reference repo docs are written to `state/projects/<name>/` with no commit to the source.
+
+When in doubt: `state/projects/<name>/overview.md` existing is the authoritative signal that a repo is a reference repo. Prefer writing to `state/projects/<name>/` over `~/src/<name>/docs/` whenever this file exists.
+
+---
+
 Generate or refresh `overview.md` and `doc-plan.md` for a code repository.
 
 ## Flags

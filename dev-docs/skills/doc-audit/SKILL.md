@@ -6,6 +6,23 @@ user-invocable: true
 
 # doc-audit
 
+---
+
+## ⚠️ REFERENCE REPO GUARDRAIL — READ FIRST
+
+A **reference repo** is one where Bud tracks documentation externally. The source lives in `~/src/<name>/` but all docs live in `state/projects/<name>/`.
+
+**How to identify a reference repo:**
+Check whether `state/projects/<name>/overview.md` exists. If it does, the repo is a reference repo — even if `~/src/<name>/docs/` also contains files.
+
+**Rule: never run `git mv`, `git add`, or `git commit` in `~/src/<repo>/` for a reference repo.**
+All audit operations (file moves, README writes, commits) must target `state/projects/<name>/` only.
+Use `git -C ~/src/bud2/state` for any git operations on reference repo docs.
+
+This applies even when the source repo has a `docs/` directory — if `state/projects/<name>/overview.md` exists, treat it as a reference repo and keep all changes out of the source.
+
+---
+
 Audit the existing documentation in a repository. Classify every file relative to the generated doc-plan, move archive-bound docs to `docs/archive/`, and annotate fold-candidates for future `arch-doc` runs.
 
 To scan multiple repos for undocumented or stale docs, use `dev:doc-scan` instead.
