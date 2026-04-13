@@ -5,7 +5,7 @@ Topics span modules — signals are the max across constituent modules.
 
 | Rank | Topic | Score | Key Modules | Signals | Status |
 |------|-------|-------|-------------|---------|--------|
-| 1 | Reference Repo Guardrail | 0.82 | `dev-docs/skills/repo-doc`, `dev-docs/skills/arch-doc`, `dev-docs/skills/doc-maintain` | cross-cutting, no doc, foundational safety constraint | missing |
+| 1 | Reference Repo Guardrail | 0.82 | `dev-docs/skills/repo-doc`, `dev-docs/skills/arch-doc`, `dev-docs/skills/doc-maintain` | cross-cutting, no doc, foundational safety constraint | done |
 | 2 | Doc-Maintain Autonomous Loop | 0.78 | `dev-docs/skills/doc-maintain`, `dev-docs/skills/doc-scan` | no doc, high complexity, coordinates all other skills | missing |
 | 3 | Repo-Doc Extraction Pipeline | 0.71 | `dev-docs/skills/repo-doc/extract.sh`, `dev-docs/skills/repo-doc` | only shell code in repo, no doc, entry point for all doc generation | missing |
 | 4 | Skill Loading and Plugin Manifest | 0.65 | `dev-docs/.claude-plugin/plugin.json`, `zettel/.claude-plugin/plugin.json`, `dev-general/.claude-plugin/plugin.json` | foundational, cross-cutting, no doc | missing |
