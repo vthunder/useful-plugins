@@ -7,7 +7,7 @@ Topics span modules — signals are the max across constituent modules.
 |------|-------|-------|-------------|---------|--------|
 | 1 | Reference Repo Guardrail | 0.82 | `dev-docs/skills/repo-doc`, `dev-docs/skills/arch-doc`, `dev-docs/skills/doc-maintain` | cross-cutting, no doc, foundational safety constraint | done |
 | 2 | Doc-Maintain Autonomous Loop | 0.78 | `dev-docs/skills/doc-maintain`, `dev-docs/skills/doc-scan` | no doc, high complexity, coordinates all other skills | generated |
-| 3 | Repo-Doc Extraction Pipeline | 0.71 | `dev-docs/skills/repo-doc/extract.sh`, `dev-docs/skills/repo-doc` | only shell code in repo, no doc, entry point for all doc generation | missing |
+| 3 | Repo-Doc Extraction Pipeline | 0.71 | `dev-docs/skills/repo-doc/extract.sh`, `dev-docs/skills/repo-doc` | only shell code in repo, no doc, entry point for all doc generation | generated: `repo-doc-extraction-pipeline.md` |
 | 4 | Skill Loading and Plugin Manifest | 0.65 | `dev-docs/.claude-plugin/plugin.json`, `zettel/.claude-plugin/plugin.json`, `dev-general/.claude-plugin/plugin.json` | foundational, cross-cutting, no doc | missing |
 | 5 | Doc-Plan Scoring Algorithm | 0.61 | `dev-docs/skills/repo-doc`, `dev-docs/skills/arch-doc` | complex scoring formula, no doc, feeds autonomous decisions | missing |
 | 6 | Zettel Schema and Lifecycle | 0.55 | `zettel/skills/zettel-new`, `zettel/skills/zettel-lint`, `zettel/skills/zettel-convert` | no doc, 7 interdependent skills | missing |
@@ -16,7 +16,7 @@ Topics span modules — signals are the max across constituent modules.
 
 ## Recommended next
 
-Run `dev:arch-doc "Repo-Doc Extraction Pipeline"` on `useful-plugins` — the extraction shell script is the only executable code in the repo and is the entry point for all doc generation.
+Run `dev:arch-doc "Skill Loading and Plugin Manifest"` on `useful-plugins` — foundational cross-cutting concern; documents how plugins register skills with the Bud agent.
 
 ---
 _Generated: 2026-04-13T01:50:00Z | Commit: 44fa705b_
