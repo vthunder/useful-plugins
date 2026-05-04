@@ -1,0 +1,31 @@
+name: things-tasks
+version: "1.0.0"
+description: Things 3 task management — GTD workflows, MCP integration, and issue tracker operations
+author: bud2
+
+mcp_servers:
+  things:
+    command: node
+    args: ["mcp/things-mcp/dist/index.js"]
+
+capabilities:
+  things-operations:
+    callable_from: direct
+  gtd-add:
+    callable_from: both
+  gtd-dispatcher:
+    callable_from: direct
+  gtd-inbox:
+    callable_from: both
+  gtd-today:
+    callable_from: both
+
+behaviors:
+  - name: gtd-dispatcher
+    trigger:
+      type: slash_command
+      name: gtd
+      source: inbox
+      classifier: ollama
+      model: "qwen2.5:7b"
+    workflow: things-tasks:gtd-dispatcher
