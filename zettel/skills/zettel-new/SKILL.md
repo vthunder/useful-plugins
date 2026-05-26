@@ -67,7 +67,11 @@ Body: 50–200 words. Atomic — one idea per zettel. Self-contained: a reader s
 
 5. **Bidirectional links.** For each zettel listed in `links:`, check which library it belongs to. If it is in the **same library** as the new zettel, open that file and add the new zettel's slug to its `links:` frontmatter array (if not already present). If the linked zettel is in a **different library**, add its ID to the new zettel's `external_links:` field instead — never edit files in external libraries (see zettel-link for cross-library link behavior).
 
-6. **MOC suggestions.** Glob `<resolved-library-path>/moc-*.md` to find existing Maps of Content. For each MOC whose topic matches the new zettel's tags, note it as a candidate. Surface 0–3 suggestions in this form:
+6. **INDEX.md and MOC suggestions.**
+
+   **For `release-spec` libraries (mandatory):** Add the new zettel to `<resolved-library-path>/INDEX.md`. If INDEX.md does not exist, create it now (see format below). Append the new zettel as a line item in the appropriate position — ask the user where it should appear in the table of contents if it's not obvious. INDEX.md is the spec's table of contents; every zettel must appear in it.
+
+   **For `evergreen` libraries:** Glob `<resolved-library-path>/moc-*.md` to find existing Maps of Content. For each MOC whose topic matches the new zettel's tags, note it as a candidate. Surface 0–3 suggestions in this form:
 
    > "This zettel could link into `moc-memory-systems` (shared tag: memory-retrieval). Add it?"
 
@@ -78,6 +82,31 @@ Body: 50–200 words. Atomic — one idea per zettel. Self-contained: a reader s
    > "Tag `zettelkasten` now has 6 zettels and no MOC. Run `zettel-index zettelkasten`?"
 
    Also check whether `<resolved-library-path>/INDEX.md` exists. If the new zettel is a strong entry point for a major topic, suggest whether it warrants a mention there.
+
+## INDEX.md format for release-spec libraries
+
+```markdown
+---
+id: INDEX
+title: <library-name> — Spec Index
+tags: [index]
+links: []
+created: YYYY-MM-DD
+---
+
+Table of contents for the <library-name> release spec. Updated: YYYY-MM-DD. <N> zettels.
+
+## <Section heading (optional — use sections if the spec has natural groupings)>
+
+- [[<id>]] **<title>** — <one-line annotation: what this section covers>
+- [[<id>]] **<title>** — <annotation>
+
+## <Section heading>
+
+- [[<id>]] **<title>** — <annotation>
+```
+
+Sections are optional — if the library is small or flat, a single unnested list is fine. The annotation is a brief editorial note (10–20 words) describing the section's scope, not restating the title.
 
 ## Quality checks
 

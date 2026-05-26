@@ -66,7 +66,13 @@ Append a comment at the **bottom** of the source file:
 
 (Legacy variants `<!-- converted:` and `<!-- migrated to zettel:` are equivalent — do not add a second marker if one already exists. Legacy markers without `library:` are assumed to target the default evergreen library.)
 
-### 6. Do NOT move or delete the source
+### 6. Create INDEX.md (release-spec libraries only)
+
+After all zettels are written, create `<resolved-library-path>/INDEX.md` as the spec's table of contents. List every zettel created in logical reading order (not necessarily creation order). Use the format defined in zettel-new's "INDEX.md format for release-spec libraries" section. If INDEX.md already exists, update it to include any newly added zettels.
+
+This step is mandatory for `release-spec` libraries. Skip for `evergreen` libraries.
+
+### 7. Do NOT move or delete the source
 
 The source file stays as a reference. Only move it if separately running `zettel-archive`.
 

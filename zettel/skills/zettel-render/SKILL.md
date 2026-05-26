@@ -35,7 +35,7 @@ If `--library` is given, search both local and global configs by name.
    - For `--moc`: read `moc-<tag>.md`, extract `[[id]]` references in the order they appear. That is the render order.
    - For `--tag`: grep `<library-path>/*.md` for `tags:` containing `<tag>`. Sort by `created:` ascending.
    - For `--slugs`: resolve each slug/ID to a file path in order given.
-   - For `--library`: if a MOC exists, use MOC order for indexed zettels, then append unindexed zettels by creation date. If no MOC, sort all by creation date.
+   - For `--library`: check for `INDEX.md` first — if present, use the `[[id]]` order from INDEX.md (this is the authoritative order for release-spec libraries). If no INDEX.md but a MOC exists, use MOC order for indexed zettels then append unindexed by creation date. If neither, sort all by creation date. If INDEX.md has sections (`##` headings), preserve them as section headings in the rendered document.
 
 3. **Read each zettel.** Extract title, tags, body. Strip frontmatter from output.
 
