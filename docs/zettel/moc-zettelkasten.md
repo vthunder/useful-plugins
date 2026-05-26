@@ -2,11 +2,11 @@
 id: moc-zettelkasten
 title: "MOC: zettelkasten"
 tags: [moc, zettelkasten]
-links: [atomic-notes-are-single-ideas, zettel-id-encodes-date-and-slug, zettels-link-bidirectionally, tags-group-zettels-into-clusters, mocs-curate-dense-tag-clusters, zettel-skills-work-across-projects]
+links: [atomic-notes-are-single-ideas, zettel-id-encodes-date-and-slug, zettels-link-bidirectionally, tags-group-zettels-into-clusters, mocs-curate-dense-tag-clusters, zettel-skills-work-across-projects, 20260526-zettel-library-kind-as-lifecycle-contract, 20260526-release-spec-library-replaces-monolithic-spec, 20260526-index-md-as-toc-for-structured-libraries, 20260526-query-synthesis-creates-new-knowledge]
 created: 2026-05-26
 ---
 
-A Map of Content for zettels tagged `zettelkasten`. Updated: 2026-05-26. 6 zettels.
+A Map of Content for zettels tagged `zettelkasten`. Updated: 2026-05-26. 10 zettels.
 
 ## Structure
 
@@ -22,3 +22,13 @@ A Map of Content for zettels tagged `zettelkasten`. Updated: 2026-05-26. 6 zette
 ## Tooling
 
 - [[20260526-zettel-skills-work-across-projects]] **Zettel skills resolve library location from config files, not hardcoded paths** — how local config, global config, and the `./docs/zettel/` fallback interact across projects
+
+## Library organization
+
+- [[20260526-zettel-library-kind-as-lifecycle-contract]] **Zettel library kind should map to maintenance lifecycle, not content type** — the evergreen vs. release-spec distinction and why it prevents cross-contamination between library types
+- [[20260526-index-md-as-toc-for-structured-libraries]] **Intentionally structured libraries need a mandatory upfront INDEX.md, not an emergent MOC** — when to declare structure vs. let it emerge from tag density
+- [[20260526-release-spec-library-replaces-monolithic-spec]] **A release-spec zettel library replaces a monolithic spec doc** — render, query, and diff as first-class operations on design intent; code-derivable content is dropped
+
+## Query and synthesis
+
+- [[20260526-query-synthesis-creates-new-knowledge]] **Non-obvious synthesis across zettels is itself new knowledge worth capturing** — querying is not just retrieval; it surfaces emergent insights the individual zettels don't express alone
