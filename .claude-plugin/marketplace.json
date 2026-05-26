@@ -1,0 +1,15 @@
+{
+  "name": "useful-plugins",
+  "description": "Dan Mills' Claude Code plugins",
+  "owner": {
+    "name": "Dan Mills",
+    "email": "hello@sandmill.org"
+  },
+  "plugins": [
+    {
+      "name": "zettel",
+      "source": "./zettel",
+      "description": "Zettelkasten skills — create, search, link, convert, index, archive, and lint atomic notes"
+    }
+  ]
+}
