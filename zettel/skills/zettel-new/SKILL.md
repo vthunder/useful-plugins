@@ -65,6 +65,10 @@ Body: 50–200 words. Atomic — one idea per zettel. Self-contained: a reader s
 
    Do not add it automatically — surface the suggestion so the agent can decide and act.
 
+   Also check for **MOC gaps**: for each of the new zettel's tags, count how many zettels in the library carry that tag. If any tag now has 5+ zettels and no `moc-<tag>.md` exists in the library, suggest creating one:
+
+   > "Tag `zettelkasten` now has 6 zettels and no MOC. Run `zettel-index zettelkasten`?"
+
    Also check whether `<resolved-library-path>/INDEX.md` exists. If the new zettel is a strong entry point for a major topic, suggest whether it warrants a mention there.
 
 ## Quality checks

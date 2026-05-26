@@ -2,7 +2,7 @@
 id: 20260526-atomic-notes-are-single-ideas
 title: A zettel captures exactly one idea
 tags: [zettelkasten, atomicity, note-taking]
-links: [zettel-id-encodes-date-and-slug, zettels-link-bidirectionally, tags-group-zettels-into-clusters, zettel-skills-work-across-projects]
+links: [zettel-id-encodes-date-and-slug, zettels-link-bidirectionally, tags-group-zettels-into-clusters, zettel-skills-work-across-projects, moc-zettelkasten]
 created: 2026-05-26
 ---
 

@@ -2,7 +2,7 @@
 id: 20260526-mocs-curate-dense-tag-clusters
 title: Maps of Content curate dense tag clusters into navigable overviews
 tags: [zettelkasten, moc, organization, navigation]
-links: [tags-group-zettels-into-clusters, zettels-link-bidirectionally]
+links: [tags-group-zettels-into-clusters, zettels-link-bidirectionally, moc-zettelkasten]
 created: 2026-05-26
 ---
 

@@ -2,7 +2,7 @@
 id: 20260526-zettels-link-bidirectionally
 title: Bidirectional links turn isolated zettels into a knowledge graph
 tags: [zettelkasten, linking, knowledge-graph]
-links: [atomic-notes-are-single-ideas, zettel-id-encodes-date-and-slug, tags-group-zettels-into-clusters]
+links: [atomic-notes-are-single-ideas, zettel-id-encodes-date-and-slug, tags-group-zettels-into-clusters, moc-zettelkasten]
 created: 2026-05-26
 ---
 

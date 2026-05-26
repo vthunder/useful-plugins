@@ -2,7 +2,7 @@
 id: 20260526-zettel-skills-work-across-projects
 title: Zettel skills resolve library location from config files, not hardcoded paths
 tags: [zettelkasten, configuration, multi-library]
-links: [atomic-notes-are-single-ideas, zettels-link-bidirectionally]
+links: [atomic-notes-are-single-ideas, zettels-link-bidirectionally, moc-zettelkasten]
 created: 2026-05-26
 ---
 

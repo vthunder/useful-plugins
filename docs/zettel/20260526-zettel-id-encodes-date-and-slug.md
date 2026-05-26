@@ -2,7 +2,7 @@
 id: 20260526-zettel-id-encodes-date-and-slug
 title: Zettel IDs encode creation date and a topic slug
 tags: [zettelkasten, ids, file-format]
-links: [atomic-notes-are-single-ideas]
+links: [atomic-notes-are-single-ideas, moc-zettelkasten]
 created: 2026-05-26
 ---
 

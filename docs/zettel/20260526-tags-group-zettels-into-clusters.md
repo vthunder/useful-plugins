@@ -2,7 +2,7 @@
 id: 20260526-tags-group-zettels-into-clusters
 title: Tags group zettels into navigable clusters without imposing hierarchy
 tags: [zettelkasten, tags, organization]
-links: [atomic-notes-are-single-ideas, zettels-link-bidirectionally, mocs-curate-dense-tag-clusters]
+links: [atomic-notes-are-single-ideas, zettels-link-bidirectionally, mocs-curate-dense-tag-clusters, moc-zettelkasten]
 created: 2026-05-26
 ---
 
