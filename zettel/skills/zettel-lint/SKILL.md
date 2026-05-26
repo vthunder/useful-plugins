@@ -10,7 +10,13 @@ Audit the zettel corpus for structural problems. Run periodically (every few wee
 
 ## Checks
 
-Read `state/system/zettel-libraries.yaml` to get all registered library paths. If the file is absent, treat `state/zettels/` as the only library. Run all checks against all registered libraries.
+Resolve registered libraries using this order:
+
+1. Check for `.zettel-libraries.yaml` in the current working directory (also check `.claude/zettel-libraries.yaml`).
+2. If not found, check `~/.config/zettel/libraries.yaml`.
+3. If neither exists, use `./docs/zettel/` as the sole library.
+
+Run all checks against all resolved libraries.
 
 ### 1. Orphaned zettels
 A zettel with no incoming links — nothing in the corpus points to it via a `links:` field. Likely too isolated to contribute to the knowledge web.
@@ -33,10 +39,10 @@ Report: list of unlinked pairs with shared tags.
 Action: prompt to run `zettel-link` on flagged pairs.
 
 ### 3. Stale sources
-Zettels with a `source:` field pointing to a file in `state/notes/` that no longer exists (moved, renamed, deleted).
+Zettels with a `source:` field pointing to a file that no longer exists (moved, renamed, deleted).
 
 ```
-for each zettel with source: field, check if state/<source> exists
+for each zettel with source: field, check if the path in source: exists on disk
 ```
 
 Report: list of zettels with broken source paths.
@@ -54,10 +60,10 @@ Action: suggest merging with a similar existing tag or removing if the tag adds 
 
 ### 5. Tag clusters with no MOC
 
-Tags that appear in 5+ zettels but have no corresponding `moc-<tag>.md` file. These are dense clusters that have outgrown ad-hoc linking and warrant a Map of Content.
+Tags that appear in 5+ zettels but have no corresponding `moc-<tag>.md` file in the same library. These are dense clusters that have outgrown ad-hoc linking and warrant a Map of Content.
 
 ```
-for each tag with count >= 5: check if state/zettels/moc-<tag>.md exists
+for each tag with count >= 5: check if <library-path>/moc-<tag>.md exists
 ```
 
 Report: list of tag clusters missing a MOC, with zettel count.
@@ -65,7 +71,7 @@ Action: suggest running `zettel-index <tag>` for each flagged cluster.
 
 ### 6. Broken external links
 
-For each zettel in each registered library that has an `external_links:` field, verify each listed ID exists in any registered library path. Report missing targets.
+For each zettel in each registered library that has an `external_links:` field, verify each listed ID exists in any resolved library path. Report missing targets.
 
 Action: update or remove broken `external_links:` entries.
 
@@ -74,7 +80,7 @@ Action: update or remove broken `external_links:` entries.
 ```
 Zettel Lint Report — YYYY-MM-DD
 ================================
-Corpus: N zettels (home: N, <library-name>: N, ...)
+Corpus: N zettels (default: N, <library-name>: N, ...)
 
 ORPHANS (no incoming links): N
 - 20240312-slug — Title of orphaned zettel
@@ -85,7 +91,7 @@ MISSING CROSS-REFS: N pairs
   → Run: zettel-link
 
 STALE SOURCES: N
-- 20240318-slug — source: notes/missing-file.md (file not found)
+- 20240318-slug — source: /path/to/missing-file.md (file not found)
 
 TAG DRIFT (singleton tags): N
 - "sparse-tag" used only in 20240320-slug — consider merging with "similar-tag"

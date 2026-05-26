@@ -10,7 +10,12 @@ Search all registered zettel libraries for existing coverage before creating new
 
 ## Steps
 
-0. **Load library config.** Read `state/system/zettel-libraries.yaml` if it exists. If absent, treat `state/zettels/` as the only library (graceful degradation). Build a list of `{name, path}` pairs to search.
+0. **Load library config.** Resolve libraries using this order:
+   1. Check for `.zettel-libraries.yaml` in the current working directory (also check `.claude/zettel-libraries.yaml`).
+   2. If not found, check `~/.config/zettel/libraries.yaml`.
+   3. If neither exists, use `./docs/zettel/` as the sole default library.
+
+   Build a list of `{name, path}` pairs to search across.
 
 1. Take the query string (concept, claim, or keyword).
 2. Run three searches against each library's path (`<library-path>/*.md`):
@@ -22,7 +27,7 @@ Search all registered zettel libraries for existing coverage before creating new
    - `title` from frontmatter
    - First sentence of the body as a one-line summary
    - Which library it came from
-4. Return the list. Home library results use the existing format: `<id> — <title>: <one-line summary>`. Results from non-home libraries are tagged: `[<library-name>] <id> — <title>: <one-line summary>`.
+4. Return the list. Default library results use the standard format: `<id> — <title>: <one-line summary>`. Results from other libraries are tagged: `[<library-name>] <id> — <title>: <one-line summary>`.
 
 ## Output format
 
@@ -30,7 +35,7 @@ Search all registered zettel libraries for existing coverage before creating new
 Matches for "<query>":
 - 20240312-act-r-activation — ACT-R base-level activation decays logarithmically: The activation of a memory chunk...
 - 20240318-spacing-effect — Spaced repetition exploits the spacing effect: Distributing practice over time...
-- [guides] 20240401-spaced-practice — Spaced practice outperforms massed practice: Distributing learning sessions...
+- [bud] 20240401-spaced-practice — Spaced practice outperforms massed practice: Distributing learning sessions...
 
 No match — safe to create new zettel.
 ```

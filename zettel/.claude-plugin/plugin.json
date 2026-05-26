@@ -1,8 +1,8 @@
 {
   "name": "zettel",
-  "description": "Zettelkasten skills for Bud — create, search, link, convert, index, archive, and lint atomic notes",
+  "description": "Zettelkasten skills — create, search, link, convert, index, archive, and lint atomic notes",
   "author": {
-    "name": "Bud"
+    "name": "Dan Mills"
   },
   "skills": "./skills/"
 }

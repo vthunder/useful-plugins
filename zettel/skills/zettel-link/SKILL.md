@@ -10,11 +10,19 @@ Add a bidirectional link between two existing zettels.
 
 ## Input
 
-Two zettel identifiers — either full IDs (`20240312-act-r-activation`) or slugs (`act-r-activation`). If slugs are ambiguous, glob `state/zettels/*<slug>*` to resolve.
+Two zettel identifiers — either full IDs (`20240312-act-r-activation`) or slugs (`act-r-activation`). If slugs are ambiguous, glob `<library-path>/*<slug>*` across all resolved libraries to disambiguate.
+
+## Library resolution
+
+Resolve registered libraries using this order:
+
+1. Check for `.zettel-libraries.yaml` in the current working directory (also check `.claude/zettel-libraries.yaml`).
+2. If not found, check `~/.config/zettel/libraries.yaml`.
+3. If neither exists, use `./docs/zettel/` as the sole library.
 
 ## Steps
 
-1. **Resolve both files.** Check `state/system/zettel-libraries.yaml` for registered libraries. Search for each ID/slug across all library paths (home first, then external). If a file isn't found in any library, stop and report which is missing.
+1. **Resolve both files.** Search for each ID/slug across all resolved library paths (default library first, then others). If a file isn't found in any library, stop and report which is missing.
 
 2. **Determine link type.**
    - If both zettels are in the **same library** → bidirectional link (existing behavior)

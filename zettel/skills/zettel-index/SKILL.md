@@ -12,9 +12,19 @@ Build an annotated Map of Content (MOC) for a given tag. A MOC is an *authored* 
 
 A tag name (e.g., `memory`, `act-r`, `spaced-repetition`).
 
+## Library resolution
+
+Resolve the target library using this order:
+
+1. Check for `.zettel-libraries.yaml` in the current working directory (also check `.claude/zettel-libraries.yaml`).
+2. If not found, check `~/.config/zettel/libraries.yaml`.
+3. If neither exists, use `./docs/zettel/` as the sole default library.
+
+The MOC is written to the default library (or the library specified via a `library:` parameter).
+
 ## Steps
 
-1. **Find all matching zettels.** Grep `state/zettels/*.md` for `tags:` lines containing the given tag. Collect matching file paths. If zero match, report and stop.
+1. **Find all matching zettels.** Grep `<resolved-library-path>/*.md` for `tags:` lines containing the given tag. Collect matching file paths. If zero match, report and stop.
 
 2. **Read each zettel.** Extract:
    - `id`, `title`, `tags` (full list), `links`
@@ -22,7 +32,7 @@ A tag name (e.g., `memory`, `act-r`, `spaced-repetition`).
 
 3. **Group by sub-tag.** If zettels share a secondary tag (beyond the query tag), group them under that sub-tag as a section. Ungrouped zettels go under "General".
 
-4. **Write annotated MOC** to `state/zettels/moc-<tag>.md`:
+4. **Write annotated MOC** to `<resolved-library-path>/moc-<tag>.md`:
 
 ```markdown
 ---
@@ -49,13 +59,13 @@ A Map of Content for zettels tagged `<tag>`. Updated: YYYY-MM-DD. <N> zettels.
 
 5. **Link back.** Add `moc-<tag>` to the `links:` frontmatter of each zettel included in the MOC (if not already present).
 
-6. **Update INDEX.md.** If `state/zettels/INDEX.md` exists, check whether this MOC is already listed. If not, and if the topic is substantive (5+ zettels), suggest adding it.
+6. **Update INDEX.md.** If `<resolved-library-path>/INDEX.md` exists, check whether this MOC is already listed. If not, and if the topic is substantive (5+ zettels), suggest adding it.
 
-7. Confirm: "MOC written to `state/zettels/moc-<tag>.md` — <N> zettels."
+7. Confirm: "MOC written to `<resolved-library-path>/moc-<tag>.md` — <N> zettels."
 
 ## Notes
 
 - MOC files are zettels themselves — they participate in the link graph. Give them a proper `id: moc-<tag>` and frontmatter.
 - Do not regenerate automatically. MOCs are authored documents; overwriting one discards editorial work. Warn before overwriting an existing MOC.
 - If a MOC already exists for this tag, read it first. Prefer adding new entries to the existing MOC rather than regenerating from scratch.
-- `INDEX.md` is the start-here zettel listing major MOCs. It lives at `state/zettels/INDEX.md`.
+- `INDEX.md` is the start-here zettel listing major MOCs. It lives at `<resolved-library-path>/INDEX.md`.

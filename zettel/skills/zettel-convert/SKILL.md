@@ -1,30 +1,34 @@
 ---
 name: zettel-convert
-description: "Convert a notes/ file into one or more zettels. Trigger: 'convert note to zettel', 'atomize this note', 'extract zettels from', 'zettelify'."
+description: "Convert a file into one or more zettels. Trigger: 'convert note to zettel', 'atomize this note', 'extract zettels from', 'zettelify'."
 user-invocable: true
 ---
 
 # zettel-convert
 
-Extract atomic knowledge from a `notes/` file into the zettelkasten. This skill guides judgment — it does not auto-generate zettels.
+Extract atomic knowledge from a file into the zettelkasten. This skill guides judgment — it does not auto-generate zettels.
 
-## Finding unmigrated notes
+## Input
 
-To find all notes that have NOT yet been migrated, run:
+A file path to convert. This can be any file: a notes doc, a design doc, a plan file, a meeting summary, etc.
+
+## Finding unmigrated files
+
+To find all files in a directory that have NOT yet been migrated, run:
 
 ```bash
-grep -rL "migrated\|converted:" /Users/thunder/Documents/bud-state/notes/*.md
+grep -rL "migrated\|converted:" <directory>/*.md
 ```
 
 This catches all legacy marker variants (`<!-- migrated to zettel:`, `<!-- migrated:`, `<!-- converted:`). Files without any of these are candidates.
 
-Do NOT check git history or look for zettel files by name — the marker in the source note is the authoritative signal.
+Do NOT check git history or look for zettel files by name — the marker in the source file is the authoritative signal.
 
 ## Steps
 
 ### 1. Read the source file
 
-Read the full contents of the target `notes/` file.
+Read the full contents of the target file.
 
 ### 2. Identify candidate concepts
 
@@ -48,7 +52,7 @@ Mark each: `zettel` / `combine` / `skip`.
 
 ### 4. Mark the source file
 
-Append a comment at the **bottom** of the source note:
+Append a comment at the **bottom** of the source file:
 
 ```
 <!-- migrated: YYYY-MM-DD, zettels: slug1, slug2, slug3 -->
@@ -58,7 +62,7 @@ Append a comment at the **bottom** of the source note:
 
 ### 5. Do NOT move or delete the source
 
-The `notes/` file stays as a reference. Only move it if separately running `zettel-archive`.
+The source file stays as a reference. Only move it if separately running `zettel-archive`.
 
 ## Judgment guidance
 
