@@ -59,7 +59,31 @@ A Map of Content for zettels tagged `<tag>`. Updated: YYYY-MM-DD. <N> zettels.
 
 5. **Link back.** Add `moc-<tag>` to the `links:` frontmatter of each zettel included in the MOC (if not already present).
 
-6. **Update INDEX.md.** If `<resolved-library-path>/INDEX.md` exists, check whether this MOC is already listed. If not, and if the topic is substantive (5+ zettels), suggest adding it.
+6. **Update or create INDEX.md.**
+
+   - Count how many `moc-*.md` files now exist in the library.
+   - If `INDEX.md` already exists: check whether this MOC is listed. If not, add it with a short annotation and update the "Updated" line.
+   - If `INDEX.md` does not exist and there are now 2+ MOCs: create it (see format below) and list all current MOCs.
+   - If `INDEX.md` does not exist and there is only 1 MOC: skip — a single MOC doesn't need a meta-index yet.
+
+   **INDEX.md format:**
+
+   ```markdown
+   ---
+   id: INDEX
+   title: Index
+   tags: [index]
+   links: [moc-<tag1>, moc-<tag2>]
+   created: YYYY-MM-DD
+   ---
+
+   Entry point for this zettel library. Updated: YYYY-MM-DD. <N> MOCs.
+
+   - [[moc-<tag1>]] **MOC: <tag1>** — <one-line annotation: what domain this cluster covers and why it matters>
+   - [[moc-<tag2>]] **MOC: <tag2>** — <annotation>
+   ```
+
+   INDEX.md is a zettel itself (`id: INDEX`) but is not tagged with any topic tag — only `index`. It links to MOCs, not to individual zettels. Each entry annotation describes the domain, not the MOC structure.
 
 7. Confirm: "MOC written to `<resolved-library-path>/moc-<tag>.md` — <N> zettels."
 
@@ -68,4 +92,4 @@ A Map of Content for zettels tagged `<tag>`. Updated: YYYY-MM-DD. <N> zettels.
 - MOC files are zettels themselves — they participate in the link graph. Give them a proper `id: moc-<tag>` and frontmatter.
 - Do not regenerate automatically. MOCs are authored documents; overwriting one discards editorial work. Warn before overwriting an existing MOC.
 - If a MOC already exists for this tag, read it first. Prefer adding new entries to the existing MOC rather than regenerating from scratch.
-- `INDEX.md` is the start-here zettel listing major MOCs. It lives at `<resolved-library-path>/INDEX.md`.
+- INDEX.md is the MOC-of-MOCs: an authored entry point for the whole library. It lives at `<resolved-library-path>/INDEX.md` and is updated incrementally, never regenerated from scratch.
