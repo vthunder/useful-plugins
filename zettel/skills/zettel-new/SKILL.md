@@ -12,11 +12,11 @@ Create a single atomic zettel. One idea. One file. Densely linked.
 
 Resolve the target library using this order:
 
-1. Check for `.zettel-libraries.yaml` in the current working directory (also check `.claude/zettel-libraries.yaml`).
-2. If not found, check `~/.config/zettel/libraries.yaml`.
-3. If neither exists, use `./docs/zettel/` as the sole default library.
+1. Check for `.zettel-libraries.yaml` in the current working directory (also check `.claude/zettel-libraries.yaml`). The write target is the entry marked `default: true`, or the first entry if none is marked.
+2. If no local config exists, the write target is `./docs/zettel/`. Also check `~/.config/zettel/libraries.yaml` for additional named libraries — these are available for search and linking but are **never** the write target.
+3. A `library:` parameter overrides the write target by name (searched across both local and global configs).
 
-The default library is the one marked `default: true`, or the first entry if none is marked. If a `library:` parameter is provided, find that library by name instead. All writes go to `<resolved-library-path>/<id>.md`.
+All writes go to `<resolved-write-target>/<id>.md`.
 
 ## Title rule (enforce strictly)
 
