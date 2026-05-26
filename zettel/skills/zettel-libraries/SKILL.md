@@ -46,7 +46,7 @@ Zettel libraries  —  <L> libraries · <N> zettels · <M> MOCs
 
 **Truncation:** show at most 4 MOCs per library. If a library has more, show the first 4 and a `· · · K more MOCs` line.
 
-**Sections:** list all section headings for a MOC inline, separated by ` · `. If a MOC has no sections (flat list), omit the section line entirely.
+**Sections:** list section headings inline, separated by ` · `, showing at most 3. If a MOC has more than 3 sections, show the first 3 followed by `· · · N more sections`. If a MOC has no sections (flat list), omit the section line entirely. Exclude any section named `Cross-links` from the count and display — it's a navigational footer, not a content grouping.
 
 **`◉` vs `◌`:** `◉` for libraries that have at least one MOC, `◌` for libraries with no MOCs.
 
@@ -67,7 +67,7 @@ Zettel libraries  —  2 libraries · 49 zettels · 8 MOCs
 
 ◉ bud  ~/Documents/bud-state/zettels/  (43 zettels · 7 MOCs)
   ├── memory  (14 zettels)
-  │     Retrieval · Storage · Encoding
+  │     Retrieval · Storage · Encoding · · · · 2 more sections
   ├── learning  (9 zettels)
   │     Spaced Practice · Interleaving
   ├── act-r  (8 zettels)
