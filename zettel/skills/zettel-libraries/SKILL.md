@@ -44,6 +44,8 @@ Zettel libraries  —  <L> libraries · <N> zettels · <M> MOCs
 
 **Path:** show the path after the display name when display name differs from path; omit when they are the same (e.g. the fallback case where display name is already the path).
 
+**Kind badge:** after the path (or display name if path is omitted), show a kind badge in brackets: `[evergreen]` or `[release-spec]`. Omit if `kind:` is absent from the config entry (treated as evergreen, no badge needed).
+
 **Truncation:** show at most 4 MOCs per library. If a library has more, show the first 4 and a `· · · K more MOCs` line.
 
 **Sections:** list section headings inline, separated by ` · `, showing at most 3. If a MOC has more than 3 sections, show the first 3 followed by `· · · N more sections`. If a MOC has no sections (flat list), omit the section line entirely. Exclude any section named `Cross-links` from the count and display — it's a navigational footer, not a content grouping.
@@ -59,7 +61,7 @@ Zettel libraries  —  <L> libraries · <N> zettels · <M> MOCs
 ## Example output
 
 ```
-Zettel libraries  —  2 libraries · 49 zettels · 8 MOCs
+Zettel libraries  —  3 libraries · 62 zettels · 9 MOCs
 
 ◉ ./docs/zettel/  (6 zettels · 1 MOC)
   └── zettelkasten  (6 zettels)
@@ -73,4 +75,8 @@ Zettel libraries  —  2 libraries · 49 zettels · 8 MOCs
   ├── act-r  (8 zettels)
   │     Activation · Declarative Memory
   └── · · · 4 more MOCs
+
+◉ task-1.0  ./docs/zettel-1.0/  [release-spec]  (13 zettels · 1 MOC)
+  └── task-1.0-spec  (13 zettels)
+        Auth · Data model · API · · · · 4 more sections
 ```

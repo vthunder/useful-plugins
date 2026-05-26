@@ -18,9 +18,15 @@ Resolve the target library using this order:
 
 All writes go to `<resolved-write-target>/<id>.md`.
 
-## Title rule (enforce strictly)
+After resolving the library, read its `kind:` field from the config entry. If absent, treat as `evergreen`. The `kind` affects title rules and quality checks below.
 
-**Title must be a claim or named concept — not a category.**
+**Library kinds:**
+- `evergreen` — reusable, cross-project knowledge. Default.
+- `release-spec` — intent for a specific release. Not required to generalize beyond the project. Archived when the release ships.
+
+## Title rule
+
+**For `evergreen` libraries (enforce strictly):** Title must be a claim or named concept — not a category.
 
 | Bad (category) | Good (claim or concept) |
 |---|---|
@@ -29,6 +35,8 @@ All writes go to `<resolved-write-target>/<id>.md`.
 | "Spacing effect" | "Spaced repetition exploits the spacing effect to reduce forgetting" |
 
 If the title reads like a folder name, reject it and ask for a specific claim.
+
+**For `release-spec` libraries:** Category titles are acceptable — the zettel describes a coherent section of the spec (e.g., "Auth model", "Data model", "SSH CLI"). The title should still be specific enough to distinguish it from other zettels in the same library.
 
 ## Steps
 
@@ -77,3 +85,10 @@ Body: 50–200 words. Atomic — one idea per zettel. Self-contained: a reader s
 - Body does not merely restate the title — it explains, justifies, or extends
 - No unresolved pronouns ("it", "this") without clear antecedent
 - `source:` is set if the idea came from another file
+
+**For `evergreen` libraries only:**
+- Body ends with the implication or why this idea matters beyond its immediate context
+
+**For `release-spec` libraries only:**
+- Body accurately describes the intended behavior/design for the release
+- Speculative or aspirational content beyond the release scope is a skip — put it in a future release library or a separate note

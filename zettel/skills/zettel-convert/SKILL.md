@@ -30,37 +30,43 @@ Do NOT check git history or look for zettel files by name — the marker in the 
 
 Read the full contents of the target file.
 
-### 2. Identify candidate concepts
+### 2. Determine target library
+
+Check the resolved library list (same resolution order as zettel-new). If there are multiple libraries or a `library:` argument was provided, resolve accordingly. Read the `kind:` field of the resolved target library — this affects the candidate criteria in step 3. If `kind:` is absent, treat as `evergreen`.
+
+### 3. Identify candidate concepts
 
 List every distinct idea, claim, or finding in the file. Number them. For each, assess:
 - **Atomic?** Can it stand alone without the source document?
-- **Evergreen?** Will it still be true or relevant in a year?
-- **Novel?** Does it add something not already obvious from context?
+- **Evergreen?** *(evergreen libraries only)* Will it still be true or relevant in a year?
+- **Novel?** Does it add something not already obvious from context (or from the codebase, for release-spec)?
 
 Mark each: `zettel` / `combine` / `skip`.
 - `zettel`: warrants its own zettel
 - `combine`: related to another candidate, should be merged into one zettel
 - `skip`: procedural, ephemeral, or too narrow to stand alone
 
+**For `release-spec` libraries:** drop the evergreen criterion. The question is whether the section is a coherent, self-contained unit of intent. Content that is purely derivable from current code without expressing any design intent is still a skip.
+
 **Show this list to the user** (or reason through it explicitly) before writing any zettels.
 
-### 3. For each `zettel` or `combine` group
+### 4. For each `zettel` or `combine` group
 
 - Run `zettel-search` to check for existing coverage
-- If not covered: run `zettel-new` to create the zettel
-- If covered: note the existing zettel slug (for the comment in step 4)
+- If not covered: run `zettel-new` to create the zettel (it will use the resolved library)
+- If covered: note the existing zettel slug (for the comment in step 5)
 
-### 4. Mark the source file
+### 5. Mark the source file
 
 Append a comment at the **bottom** of the source file:
 
 ```
-<!-- migrated: YYYY-MM-DD, zettels: slug1, slug2, slug3 -->
+<!-- migrated: YYYY-MM-DD, library: <library-name>, zettels: slug1, slug2, slug3 -->
 ```
 
-(Legacy variants `<!-- converted:` and `<!-- migrated to zettel:` are equivalent — do not add a second marker if one already exists.)
+(Legacy variants `<!-- converted:` and `<!-- migrated to zettel:` are equivalent — do not add a second marker if one already exists. Legacy markers without `library:` are assumed to target the default evergreen library.)
 
-### 5. Do NOT move or delete the source
+### 6. Do NOT move or delete the source
 
 The source file stays as a reference. Only move it if separately running `zettel-archive`.
 
