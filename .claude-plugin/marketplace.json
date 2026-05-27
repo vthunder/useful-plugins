@@ -10,6 +10,11 @@
       "name": "zettel",
       "source": "./zettel",
       "description": "Zettelkasten skills — create, search, link, convert, index, archive, and lint atomic notes"
+    },
+    {
+      "name": "spec-loop",
+      "source": "./spec-loop",
+      "description": "Spec-driven development loop — spec-lock (Loop 1: audit + test stubs) and spec-build (Loop 2: implement from failing tests)"
     }
   ]
 }
