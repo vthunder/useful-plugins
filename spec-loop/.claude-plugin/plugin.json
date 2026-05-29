@@ -1,0 +1,9 @@
+{
+  "name": "spec-loop",
+  "description": "Spec-driven development loop — spec-lock (Loop 1: audit + test stubs) and spec-build (Loop 2: implement from failing tests)",
+  "author": {
+    "name": "Dan Mills"
+  },
+  "skills": "./skills/",
+  "workflows": "./workflows/"
+}

@@ -77,46 +77,37 @@ task list with no args defaults to assigned-to-me view
 "standalone mode"   defined in [20260526-multi-auth-strategy]
 ```
 
-### 4. Semantic consistency checks
+### 4. Semantic consistency checks (parallel workflow)
 
-Work through each check category. For each finding, cite the specific zettels in conflict.
+Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `zettel@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/zettel-audit-semantic.js`.
 
-**4a. Interface contradictions**
-Look for the same command, route, or field name described differently across zettels. Examples to catch:
-- Command spelled `sprint:close` in one zettel, `sprint close` in another
-- Route path differs between the zettel that introduces it and the zettel that references it
-- A flag exists in one description but is absent or named differently in another
+Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
 
-**4b. Data model conflicts**
-Look for the same table or column referenced with different names, types, or semantics across zettels. Also check:
-- A zettel references a field (e.g. `tasks.carried_from_sprint_id`) that is not declared in any data model zettel
-- A zettel declares a schema change that contradicts an earlier zettel's schema
+```json
+{
+  "corpus": [{ "id": "...", "title": "...", "tags": [...], "links": [...], "external_links": [...], "body": "...", "path": "..." }],
+  "library_name": "<name>",
+  "library_kind": "release-spec | evergreen",
+  "focus_slugs": ["slug1", "slug2"]
+}
+```
 
-**4c. Behavioral contradictions**
-Look for two zettels making incompatible claims about the same behavior. Common patterns:
-- Resolution rules: zettel A says X resolves one way, zettel B implies it resolves differently
-- Default values: zettel A says default is X, zettel B assumes default is Y
-- Scope: zettel A says a setting applies globally, zettel B treats it as per-team
+The workflow fans out all 7 check dimensions (interface contradictions, data model conflicts, behavioral contradictions, stale claims, unspecced dependencies, terminology inconsistency, open questions) as parallel agents, then runs adversarial verification on all high- and medium-confidence findings before returning. False positives are filtered before the report is produced.
 
-**4d. Stale claims** (the "new zettel invalidates old one" class)
-For each recently-added zettel (or all zettels if `--focus` is not set), check whether its claims supersede or contradict claims in *older* zettels that weren't updated. This is the hardest check — it requires reasoning about whether an old claim is still true given new context.
+The workflow returns:
+- `findings` — verified findings, each with `kind`, `slugs`, `description`, `quote_a`, `quote_b`, `suggested_resolution`, `confidence`, `blocks_implementation`
+- `by_kind` — counts per finding type
+- `false_positives_removed` — number of findings rejected by adversarial verifiers
 
-Example pattern to catch: a new zettel changes how `sprint == current` resolves (per-team active sprint), but an older zettel (filter-expression-language) still documents the old date-based resolution without acknowledging the new behavior.
+Use the returned `findings` to produce the report in step 5. The dimension sub-checks (4a–4g) are as follows for reference (the workflow agents follow these same criteria):
 
-For each stale claim found: identify the old zettel, the specific claim that is now outdated, and the new zettel that supersedes it.
-
-**4e. Unspecced dependencies**
-Look for concepts, tables, fields, commands, or behaviors that are *implied* by a zettel but not specced anywhere. Examples:
-- A command is mentioned but its behavior is not described in any zettel
-- A table is referenced in queries but never defined
-- A migration is implied (new column, new table) but no zettel describes it
-- An API endpoint is called by the CLI but no zettel specifies its contract
-
-**4f. Terminology inconsistency**
-Look for the same concept referred to by different names across zettels, or the same term used with different meanings. Examples: "active sprint" vs "current sprint" vs "team sprint" — do all zettels mean the same thing?
-
-**4g. Open questions**
-Look for unresolved questions, TODOs, or "TBD" markers in zettel bodies that represent decisions not yet made. Flag these as pending — they are not contradictions, but they are gaps.
+- **4a Interface contradictions** — same command/route/flag described differently
+- **4b Data model conflicts** — same table/column with different names, types, or undeclared fields
+- **4c Behavioral contradictions** — incompatible claims about resolution rules, defaults, or scope
+- **4d Stale claims** — newer zettel supersedes older without the older being updated
+- **4e Unspecced dependencies** — behavior/tables/commands implied but never specced
+- **4f Terminology inconsistency** — same concept with different names, or same term with different meanings
+- **4g Open questions** — unresolved TODOs/TBDs; classify as blocking or non-blocking
 
 ### 5. Produce the report
 

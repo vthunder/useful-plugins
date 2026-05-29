@@ -8,7 +8,7 @@ user-invocable: true
 
 Audit the zettel corpus for structural problems. Run periodically (every few weeks) to prevent rot.
 
-## Checks
+## Checks (parallel workflow)
 
 Resolve registered libraries using this order:
 
@@ -16,66 +16,42 @@ Resolve registered libraries using this order:
 2. If not found, check `~/.config/zettel/libraries.yaml`.
 3. If neither exists, use `./docs/zettel/` as the sole library.
 
-Run all checks against all resolved libraries.
+Read all zettel frontmatter and bodies from all resolved libraries. Then resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `zettel@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/zettel-lint-checks.js`.
 
-### 1. Orphaned zettels
-A zettel with no incoming links — nothing in the corpus points to it via a `links:` field. Likely too isolated to contribute to the knowledge web.
+Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
 
-Orphan detection counts only `links:` fields (bidirectional links) and incoming `links:` references from other zettels within the same library. Do not flag a zettel as orphaned purely because it only appears in `external_links:` fields — cross-library references are intentionally one-way and do not count as incoming links.
-
-```
-grep -rL "<id>" <library-path>/  # for each zettel, check if its id appears in any other zettel's links: or body
-```
-
-Report: list of orphaned zettel ids + titles (per library).
-Action: for each orphan, suggest either linking it into an existing cluster or reviewing whether it should exist.
-
-### 2. Missing cross-references
-Pairs of zettels within the **same library** that share 2+ tags but are not linked to each other. Likely related but overlooked. Cross-library pairs are intentionally linked one-way and should not be flagged here.
-
-For each same-library pair with tag overlap ≥ 2: check if either links to the other.
-
-Report: list of unlinked pairs with shared tags.
-Action: prompt to run `zettel-link` on flagged pairs.
-
-### 3. Stale sources
-Zettels with a `source:` field pointing to a file that no longer exists (moved, renamed, deleted).
-
-```
-for each zettel with source: field, check if the path in source: exists on disk
+```json
+{
+  "libraries": [
+    {
+      "name": "<library-name>",
+      "path": "<library-path>",
+      "kind": "release-spec | evergreen",
+      "zettels": [
+        { "id": "...", "title": "...", "tags": [...], "links": [...], "external_links": [...], "source": "...", "path": "..." }
+      ]
+    }
+  ]
+}
 ```
 
-Report: list of zettels with broken source paths.
-Action: update source path or clear it if provenance is no longer recoverable.
+The workflow runs all 6 structural checks concurrently (orphaned zettels, missing cross-references, stale sources, tag drift, MOC gaps, broken external links) and returns:
+- `findings` — all findings across all checks, each with `check`, `library`, `zettel_id`, `description`, `suggestion`
+- `by_check` — count per check name
+- `total_issues` — total finding count
 
-### 4. Tag drift
-Tags that appear in only one zettel. Likely a one-off that should be normalized to an existing tag or dropped.
+The six checks, for reference:
 
-```
-extract all tags, count frequency, flag count == 1
-```
-
-Report: singleton tags + the zettel that uses them.
-Action: suggest merging with a similar existing tag or removing if the tag adds no value.
-
-### 5. Tag clusters with no MOC
-
-Tags that appear in 5+ zettels but have no corresponding `moc-<tag>.md` file in the same library. These are dense clusters that have outgrown ad-hoc linking and warrant a Map of Content.
-
-```
-for each tag with count >= 5: check if <library-path>/moc-<tag>.md exists
-```
-
-Report: list of tag clusters missing a MOC, with zettel count.
-Action: suggest running `zettel-index <tag>` for each flagged cluster.
-
-### 6. Broken external links
-
-For each zettel in each registered library that has an `external_links:` field, verify each listed ID exists in any resolved library path. Report missing targets.
-
-Action: update or remove broken `external_links:` entries.
+1. **Orphaned zettels** — no incoming links from same-library zettels (cross-library external_links don't count)
+2. **Missing cross-references** — same-library pairs sharing 2+ tags with no bidirectional link
+3. **Stale sources** — `source:` field pointing to a file that no longer exists on disk
+4. **Tag drift** — tags appearing in only one zettel across the whole corpus
+5. **Tag clusters with no MOC** — tags in 5+ zettels in a library with no `moc-<tag>.md`
+6. **Broken external links** — `external_links:` entries not found in any resolved library
 
 ## Output format
+
+Use the `findings` and `by_check` from the workflow result to produce this report:
 
 ```
 Zettel Lint Report — YYYY-MM-DD

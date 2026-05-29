@@ -4,5 +4,6 @@
   "author": {
     "name": "Dan Mills"
   },
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "workflows": "./workflows/"
 }

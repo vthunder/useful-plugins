@@ -50,35 +50,59 @@ Interpret the audit result:
 
 For each issue found:
 1. Identify which zettel(s) are implicated.
-2. Call `zettel-edit` on the implicated zettel to fix the issue. Apply the minimal change that resolves the audit finding:
+2. Formulate a proposed fix (minimal change that resolves the audit finding):
    - Broken link → remove the link from `links:` frontmatter.
    - Contradiction between two zettels → update the zettel whose claim is stale (prefer updating the older zettel, unless the audit identifies which is authoritative).
    - Interface mismatch → reconcile the described interface with the implementation by updating the zettel body.
    - Stale claim → update the zettel body to reflect current behavior.
    - Blocking open question → surface it to the user as a spec gap and **do not proceed** until answered. Non-blocking open questions: note them and continue.
-3. After applying fixes, re-run `zettel-audit`. Repeat until audit is clean.
+3. Before applying fixes, resolve the workflow script path (`spec-loop@useful-plugins` installPath from `~/.claude/plugins/installed_plugins.json`, then `<installPath>/workflows/spec-lock-audit-verify.js`). Invoke the Workflow tool with `scriptPath` set to that path, passing all proposed fixes for this audit cycle as a batch:
+   ```json
+   {
+     "proposed_fixes": [
+       {
+         "issue_kind": "broken-link | contradiction | stale-claim | interface-mismatch",
+         "zettel_path": "<path>",
+         "zettel_id": "<id>",
+         "issue_description": "<what the audit found>",
+         "proposed_change": "<natural-language description of the edit>"
+       }
+     ],
+     "library_path": "<library path>"
+   }
+   ```
+   The workflow returns `approved` and `rejected` arrays. Apply only the `approved` fixes. For `rejected` fixes, report the reviewer concerns to the user — do not apply them silently.
+4. Apply the approved fixes using `zettel-edit`.
+5. After applying fixes, re-run `zettel-audit`. Repeat until audit is clean.
 
 **Safety limit:** If the audit is still not clean after 5 fix-and-reaudit cycles, stop and report all remaining issues to the user for manual resolution. Do not commit partial work.
 
-## Step 3 — Test generation
+## Step 3 — Test generation (parallel)
 
-For each file path in `changed_zettels`, call `spec-test-gen` with that path as input.
+Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find the entry for `spec-loop@useful-plugins`, and take its `installPath`. The script is at `<installPath>/workflows/spec-lock-test-gen.js`.
 
-`spec-test-gen` will:
-- Enumerate testable claims in the zettel.
-- Search the test suite for coverage.
-- Create or update test stubs.
-- Stamp `tests:` frontmatter on the zettel.
+Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
 
-Wait for `spec-test-gen` to complete before proceeding.
+```json
+{
+  "zettels": ["<path1>", "<path2>", ...],
+  "library_path": "<resolved library path>",
+  "test_dir": "<test dir if known, else omit>"
+}
+```
+
+The workflow runs `spec-test-gen` on all changed zettels in parallel, retries any that fail to stamp `tests:` frontmatter, and returns:
+- `results` — per-zettel summary (stubs written, test files, covered flag)
+- `uncovered` — list of zettel paths that still lack coverage after retry
+- `total_stubs_written`, `total_stubs_updated`
+
+Wait for the workflow to complete before proceeding.
 
 ## Step 4 — Coverage check
 
-For each zettel in `changed_zettels`:
-- Read the zettel's frontmatter.
-- Check whether `tests:` is present and non-empty, OR the zettel was confirmed to have zero testable claims (spec-test-gen reported "0 testable claims").
-
-If any zettel is missing `tests:` coverage and was not confirmed claim-free, re-run `spec-test-gen` for that zettel. If it fails again, report the gap and continue (do not block the commit).
+Inspect the workflow result:
+- Any path in `uncovered` represents a zettel that failed coverage after retry. Report it and continue (do not block the commit).
+- All other zettels in `results` with `covered: true` are done.
 
 ## Step 5 — Commit
 

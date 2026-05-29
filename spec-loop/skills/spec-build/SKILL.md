@@ -36,41 +36,36 @@ Run `<test-cmd>` and capture all output (stdout + stderr). Note:
 
 If all tests pass immediately, report success and exit — nothing to do.
 
-## Step 3 — Parse failures into gap report
+## Step 3 — Parse failures into gap report (parallel)
 
-For each failing test, extract:
+Collect the list of failing tests from the test runner output. For each failing test, extract the test name, file path, line number, and first ~20 lines of failure output.
 
-1. **Test name** — the function or test block name.
-2. **Failure message** — the assertion error, panic message, or `todo!()` / `NotImplementedError` body.
-3. **File and line** — where the failure occurred.
-4. **Spec claim reference** — look for a comment in the test file of the form `spec: <zettel-id> claim <N> — <description>` immediately above or inside the test. If found, record the zettel ID and claim number. If not found, mark as "no spec reference".
-5. **Failure kind** — classify as one of:
-   - `stub` — test body is `todo!()`, `test.todo`, or `raise NotImplementedError` (unimplemented spec item).
-   - `assertion` — a real assertion failed (regression or mismatch).
-   - `compile` — the code does not compile (missing type, function, or module).
-   - `ambiguous` — the failure message or test name suggests the spec itself is unclear (see step 6).
+Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `spec-loop@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/spec-build-gap-parse.js`.
 
-Produce the gap report:
+Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
 
-```
-Gap Report — <timestamp>
-------------------------
-Total failing: N
-
-[1] <test-name>
-    Kind: stub | assertion | compile | ambiguous
-    Spec: <zettel-id> claim <N> — <description>  (or "no spec reference")
-    File: <test-file>:<line>
-    Message: <first 3 lines of failure output>
-
-[2] ...
+```json
+{
+  "failing_tests": [
+    { "name": "<test-name>", "file": "<path>", "line": 42, "failure_output": "<first 20 lines>" }
+  ],
+  "library_path": "<resolved zettel library path>",
+  "test_dir": "<test dir>"
+}
 ```
 
-Print the gap report.
+The workflow classifies all failing tests in parallel (one agent per test), then runs 3-interpreter adversarial verification on any `ambiguous` classifications to filter false positives — tests that look ambiguous but actually have a clear spec interpretation are downgraded to `assertion`. Results are sorted into processing order: `compile` first, then `stub`, then `assertion`, `ambiguous` last.
+
+The workflow returns:
+- `gaps` — ordered array of classified gap objects with `kind`, spec ref fields, `failure_summary`, and optional `ambiguity_resolved`
+- `by_kind` — counts per kind
+- `gap_report` — pre-formatted gap report string
+
+Print the `gap_report`. Use the `gaps` array as the input to step 4.
 
 ## Step 4 — Implementation loop
 
-Process gaps one at a time, in this order: `compile` first, then `stub`, then `assertion`. Skip `ambiguous` gaps (handled in step 6).
+Use the `gaps` array returned by the workflow in step 3. Process gaps one at a time in the order returned (already sorted: `compile` → `stub` → `assertion`). Skip `ambiguous` gaps (handled in step 6).
 
 For each gap:
 
@@ -99,8 +94,8 @@ Run `<test-cmd> <filter-for-this-test>` to verify the single test now passes:
 
 If the test still fails:
 - Read the new failure message carefully.
-- If it reveals a genuine spec ambiguity (the claim is contradictory, underspecified, or conflicts with another claim): classify as `ambiguous` and move on — do not keep trying to implement it.
-- If it is a code error: fix and re-run. Limit to 3 fix attempts per gap. If still failing after 3 attempts, mark as `blocked` and move on.
+- If it reveals a possible spec ambiguity: invoke the Workflow tool with `scriptPath` set to `<installPath>/workflows/spec-build-gap-parse.js` (same path resolution as step 3) for just this one test (passing a single-element `failing_tests` array). The workflow's 3-interpreter adversarial pass will determine whether the ambiguity is genuine. If the workflow returns the gap still classified as `ambiguous`, escalate to step 6. If it's resolved to `assertion`, continue fixing.
+- If it is a code error (not a spec ambiguity): fix and re-run. Limit to 3 fix attempts per gap. If still failing after 3 attempts, mark as `blocked` and move on.
 
 ### 4d — Commit the gap
 
@@ -132,7 +127,9 @@ If tests still fail: some gaps may have been interdependent or a fix introduced 
 
 ## Step 6 — Spec ambiguity handling
 
-For each gap classified as `ambiguous`, produce a spec gap item in this format:
+Note: the workflow in step 3 already ran 3-interpreter adversarial verification on ambiguous gaps. Any gap still classified `ambiguous` here survived that verification — it is genuinely unclear. Gaps with `ambiguity_resolved` set were downgraded to `assertion` by the workflow and will have been processed in step 4 already.
+
+For each remaining gap classified as `ambiguous`, produce a spec gap item in this format:
 
 ```
 SPEC GAP [<gap-number>]
