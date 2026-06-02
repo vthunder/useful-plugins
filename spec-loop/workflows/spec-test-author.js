@@ -83,13 +83,14 @@ PROCEDURE:
 
 HARD RULES:
 - Author/modify TESTS ONLY. Never write or modify production/source code, and never edit zettels.
+- NEVER DELETE A TEST FUNCTION. Every claim that had a stub keeps a function in the file. The number of test functions must NOT decrease — it only stays the same (stub → real, or stub stays #[ignore]) or grows. Before finishing, re-read the file and confirm every fn you started with is still present.
 - Exercise the system at the SAME boundary as sibling tests — black-box via CLI/SSH exec, HTTP, PTY, SQL (information_schema, table queries). NEVER call internal symbols that may not exist; that breaks compilation instead of failing cleanly.
 - Authored/re-authored tests must COMPILE and then FAIL for the right reason (assertion failure / expected "feature absent" error). Red-because-unimplemented is the goal.
 - Encode exactly the current claim — don't weaken to pass, don't assert unspecified behavior. One claim per test.
 - Use time-relative seeding (e.g. SQL date_trunc('week', CURRENT_DATE)) instead of hardcoded "current" dates.
-- If a test cannot be authored faithfully at the test boundary without breaking compilation, leave/restore its prior marker and record it in could_not_author with BOTH a concrete reason AND a suggested_resolution (what would make it authorable: a harness capability like mock-hq / multi-identity SSH / clock injection, a spec change, or rescoping the claim). Never leave the suite uncompilable, and never silently drop an unauthorable claim without a resolution path.
+- If a test cannot be authored faithfully at the test boundary without breaking compilation, the function MUST remain in the file as an #[ignore] stub (restore it verbatim if you removed or edited it — do NOT delete it), and you record it in could_not_author with BOTH a concrete reason AND a suggested_resolution (what would make it authorable: a harness capability like mock-hq / multi-identity SSH / clock injection, a spec change, or rescoping the claim). Never leave the suite uncompilable, and never drop an unauthorable claim — a could_not_author entry without a surviving #[ignore] function in the file is a failure.
 
-Your edits to the file are the deliverable; the returned text is just the structured summary.`,
+Self-check before returning: the file still contains a function for every stub you were given (authored, re-authored, or still #[ignore]); none were deleted. Your edits to the file are the deliverable; the returned text is just the structured summary.`,
     { label: `reconcile:${f.file.split('/').pop()}`, phase: 'Reconcile tests', schema: RESULT_SCHEMA }
   )
 )

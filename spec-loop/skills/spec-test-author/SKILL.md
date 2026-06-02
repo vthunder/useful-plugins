@@ -32,7 +32,7 @@ Loop position: **spec-lock → spec-test-author → spec-build**.
 2. **The zettel claim is authoritative.** Author/re-author the assertion to check what the *current* claim says, at the strength it implies. Never weaken an assertion to make it pass; never assert behavior the claim doesn't state.
 3. **Stay at the existing test boundary.** Mirror how sibling real tests exercise the system — black-box via CLI/SSH, HTTP, PTY, and SQL (`information_schema`, table queries), **not** by calling internal functions. This is what lets a test *compile and fail* before the feature exists; a test that calls a not-yet-existing internal symbol breaks the build instead.
 4. **Match claims by text/meaning, not by number.** Claim numbers shift when claims are inserted or removed, so `claim <N>` references drift. Reconcile a test against the *content* of the zettel's claims; update the `spec: <id> claim <N> — <text>` comment to the current number+text when you touch a test.
-5. **Never silently delete or weaken a test.** Removing a test, or changing it so it stops asserting a still-current claim, requires surfacing it for human review (Step 4c). Orphans are quarantined, not deleted.
+5. **Never delete a test function.** Every claim that had a stub keeps a function — the test count never decreases. A stub you can't author stays in the file as an `#[ignore]` stub (restored verbatim if touched); an orphan is quarantined with `#[ignore]`, never deleted (Step 4c). A could-not-author entry with no surviving `#[ignore]` function in the file is a bug. Removing or weakening a test that still maps to a current claim requires surfacing it for human review, not doing it silently.
 6. **Remove `#[ignore]`** (and the `"stub: not yet implemented"` / `FIXME` markers) once a test is real and matches the current claim, so it runs.
 
 ## Step 1 — Resolve library, test dir, and conventions
@@ -86,6 +86,8 @@ It returns per-file counts and the orphan list.
 - A NEW or CHANGED test that **passes immediately** → the claim is already satisfied; keep it (now real coverage) and note it.
 
 **4b. Re-author fixes** at most 2 times per file; if a test still won't compile cleanly as a faithful test, restore its prior marker and list it under "could not author". Every could-not-author entry **must** carry (1) the claim it covers, (2) a concrete reason it can't be authored at the test boundary, and (3) a **suggested resolution** — e.g. add a harness capability (mock-hq, multi-identity SSH, clock injection), rescope the claim as non-testable in the zettel, or split it into a testable form. A reason without a path to resolve it is not acceptable.
+
+**4b-check. No test was deleted.** Before trusting the workflow's output, confirm the agents didn't drop any stub: the count of test functions per touched file must be ≥ what it started with, and every `could_not_author` entry must still have a matching `#[ignore]` function in its file. If a function went missing, restore it as an `#[ignore]` stub (from the claim text) before continuing — a could-not-author claim with no surviving stub is a regression, not a gate item.
 
 **4c. Surface orphans.** List every quarantined orphan with its old claim reference so the user can confirm deletion (or restore the claim to the spec). Do not delete them yourself.
 
