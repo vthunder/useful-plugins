@@ -85,9 +85,11 @@ It returns per-file counts and the orphan list.
 - Fails an assertion / expected error → correct (red checkpoint for spec-build).
 - A NEW or CHANGED test that **passes immediately** → the claim is already satisfied; keep it (now real coverage) and note it.
 
-**4b. Re-author fixes** at most 2 times per file; if a test still won't compile cleanly as a faithful test, restore its prior marker and list it under "could not author".
+**4b. Re-author fixes** at most 2 times per file; if a test still won't compile cleanly as a faithful test, restore its prior marker and list it under "could not author". Every could-not-author entry **must** carry (1) the claim it covers, (2) a concrete reason it can't be authored at the test boundary, and (3) a **suggested resolution** — e.g. add a harness capability (mock-hq, multi-identity SSH, clock injection), rescope the claim as non-testable in the zettel, or split it into a testable form. A reason without a path to resolve it is not acceptable.
 
 **4c. Surface orphans.** List every quarantined orphan with its old claim reference so the user can confirm deletion (or restore the claim to the spec). Do not delete them yourself.
+
+**4d. Could-not-author is a decision gate (do not auto-proceed).** If *any* claim could not be authored, this skill **stops at its report** and does not hand off to spec-build. These are claims with no executable test, so spec-build cannot drive or verify them — running it anyway would silently ship unverified behavior, the exact failure mode this loop exists to prevent. The user decides per item whether to (a) resolve it (add the missing harness capability / fix the spec) and re-run spec-test-author, or (b) explicitly accept it as known-unverified and proceed. The skill must not make that call itself.
 
 ## Step 5 — Commit the red checkpoint
 
@@ -116,17 +118,30 @@ Authored (new):     N   (real failing tests)
 Re-authored (changed): N   (now failing; old assertions replaced)
 Passed immediately: N   (claim already satisfied)
 Orphaned (quarantined): N
-Could not author:   N
+Could not author:   N   ← if > 0, this is a decision gate (see below)
 Committed:          <sha> (or "skipped, --no-commit")
 
 Orphaned tests — confirm deletion or restore the claim:
   [<zettel-id> claim N] <fn> — claim no longer in spec
 
-Could not author (need attention):
-  [<zettel-id> claim N] <fn> — <reason>
-
-Next: run spec-build to implement the red tests to green.
+⚠ COULD NOT AUTHOR — N claim(s) have no executable test. Decide before spec-build:
+  [<zettel-id> claim N] <fn>
+     why: <concrete reason it can't be tested at the boundary>
+     to resolve: <suggested fix — harness capability / spec change / rescope>
+     your call: resolve & re-run spec-test-author, or accept as known-unverified
 ```
+
+**If "Could not author" is 0**, end with: `Next: run spec-build to implement the red tests to green.`
+
+**If "Could not author" is > 0**, do NOT tell the user to run spec-build. End with an explicit gate, e.g.:
+
+```
+These N claim(s) will have NO test coverage. spec-build cannot verify them.
+Choose per item: (a) resolve the blocker and re-run spec-test-author, or
+(b) explicitly accept them as unverified — then run spec-build for the rest.
+```
+
+Wait for the user's decision; do not proceed to spec-build on your own.
 
 ## Pitfalls
 

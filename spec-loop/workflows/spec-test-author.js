@@ -32,8 +32,13 @@ const RESULT_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { fn: { type: 'string' }, zettel_claim: { type: 'string' }, reason: { type: 'string' } },
-        required: ['fn', 'reason'],
+        properties: {
+          fn: { type: 'string' },
+          zettel_claim: { type: 'string' },
+          reason: { type: 'string', description: 'concrete reason it cannot be authored at the test boundary' },
+          suggested_resolution: { type: 'string', description: 'what would make it authorable: harness capability, spec change, or rescope' },
+        },
+        required: ['fn', 'reason', 'suggested_resolution'],
       },
     },
     orphans: {
@@ -82,7 +87,7 @@ HARD RULES:
 - Authored/re-authored tests must COMPILE and then FAIL for the right reason (assertion failure / expected "feature absent" error). Red-because-unimplemented is the goal.
 - Encode exactly the current claim — don't weaken to pass, don't assert unspecified behavior. One claim per test.
 - Use time-relative seeding (e.g. SQL date_trunc('week', CURRENT_DATE)) instead of hardcoded "current" dates.
-- If a test cannot be authored faithfully at the test boundary without breaking compilation, leave/restore its prior marker and record it in could_not_author. Never leave the suite uncompilable.
+- If a test cannot be authored faithfully at the test boundary without breaking compilation, leave/restore its prior marker and record it in could_not_author with BOTH a concrete reason AND a suggested_resolution (what would make it authorable: a harness capability like mock-hq / multi-identity SSH / clock injection, a spec change, or rescoping the claim). Never leave the suite uncompilable, and never silently drop an unauthorable claim without a resolution path.
 
 Your edits to the file are the deliverable; the returned text is just the structured summary.`,
     { label: `reconcile:${f.file.split('/').pop()}`, phase: 'Reconcile tests', schema: RESULT_SCHEMA }
