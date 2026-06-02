@@ -13,6 +13,7 @@ Run the project's test suite, parse every failure into a structured gap report t
 - Optional: `--test-cmd <command>` — override the test command (default: auto-detected, see step 1).
 - Optional: `--filter <pattern>` — pass a test filter to run only a subset (e.g., `spec_` to run only spec-generated stubs).
 - Optional: `--max-gaps <N>` — stop after closing N gaps (useful for incremental runs; default: unlimited).
+- Optional: `--parallel` — implement gaps concurrently via the clustered-worktree workflow (Step 4P) instead of the sequential loop (Step 4). Best when there are many gaps spanning distinct features.
 
 ## Step 1 — Detect test command
 
@@ -114,6 +115,36 @@ git commit -m "impl: <short description derived from test name>"
 ```
 
 Move to the next gap.
+
+## Step 4P — Parallel implementation (clustered worktrees)
+
+Use this **instead of Step 4** when `--parallel` is set. It implements file-disjoint feature clusters concurrently in isolated git worktrees, then integrates them serially. The safety invariant: clusters never share a production file and each owns a pre-assigned migration-number range, so their branches merge without conflicts.
+
+**Preconditions.** Commit or stash any unrelated working-tree changes first — worktree branches fork from `HEAD`, so the tree should be clean (only the red tests committed). Determine the first free migration number (highest existing `NNNN_*.sql` + 1).
+
+**Run the workflow.** Resolve `spec-loop@useful-plugins` installPath; the script is `<installPath>/workflows/spec-build-impl.js`. Invoke Workflow with:
+
+```json
+{
+  "gaps": [{ "id": "g1", "test_name": "...", "test_file": "...", "zettel_id": "...", "claim": 3, "failure_summary": "..." }],
+  "repo_root": "<repo root>",
+  "library_path": "<zettel library path>",
+  "test_cmd": "<test-cmd>",
+  "migration_base": <first free migration number>
+}
+```
+
+The workflow: (1) **plans** each gap in parallel (read-only) to predict the production files and migration count it touches; (2) **clusters** gaps that share any file (union-find) so each file has one owner, and assigns each cluster a disjoint migration-number range; (3) **implements** each cluster in an isolated worktree on branch `spec-build/cluster-<i>`, creating migrations only within its assigned range, and runs that cluster's target tests. It returns `clusters`, per-cluster `results` (branch, committed, tests_passed, failing_tests), `integrated` (clean branches), and `needs_attention`.
+
+**Integrate serially (you, the orchestrator):**
+1. For each branch in `integrated`: `git merge --no-ff <branch>`. Because clusters are file-disjoint, this is conflict-free. If a merge *does* conflict, the clustering missed a shared file — abort that merge, and fall back to Step 4 (sequential) for that cluster's gaps.
+2. After merging all clean clusters, run the **full** `<test-cmd>`. The integrated tree must compile and pass; a green-per-cluster result does not guarantee a green whole.
+3. For clusters in `needs_attention` (tests didn't pass in isolation), drop to Step 4 (sequential) for their gaps on the integrated tree.
+4. Clean up: delete merged `spec-build/cluster-*` branches and prune worktrees (`git worktree prune`).
+
+**Commit.** The cluster commits come in via merge; keep them, or squash per feature if you prefer one commit per cluster. Do not squash across clusters (loses the gap→commit traceability).
+
+Then continue to Step 5 (full test run) as usual. If `--parallel` was not set, ignore this step and use Step 4.
 
 ## Step 5 — Full test run
 
