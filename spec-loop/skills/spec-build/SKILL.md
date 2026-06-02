@@ -120,7 +120,9 @@ Move to the next gap.
 
 Use this **instead of Step 4** when `--parallel` is set. It implements file-disjoint feature clusters concurrently in isolated git worktrees, then integrates them serially. The safety invariant: clusters never share a production file and each owns a pre-assigned migration-number range, so their branches merge without conflicts.
 
-**Preconditions.** Commit or stash any unrelated working-tree changes first — worktree branches fork from `HEAD`, so the tree should be clean (only the red tests committed). Determine the first free migration number (highest existing `NNNN_*.sql` + 1).
+**Preconditions.** Commit or stash any unrelated working-tree changes first — the tree must be clean (only the red tests committed). Capture the integration base: `base_sha = git rev-parse HEAD` on the branch carrying the red tests. Determine the first free migration number (highest existing `NNNN_*.sql` + 1).
+
+> **Worktree base (important).** The isolation mechanism may fork each worktree from a *stale* commit (e.g. the default branch), not your current HEAD — so you MUST pass `base_sha` and the workflow makes each agent `git reset --hard <base_sha>` before working. Without this, agents' worktrees lack the `tests/` dir and recent source, and they implement blind (unverifiable) code. Agents are also instructed to stay strictly inside their worktree and never touch the main checkout or other branches.
 
 **Run the workflow.** Resolve `spec-loop@useful-plugins` installPath; the script is `<installPath>/workflows/spec-build-impl.js`. Invoke Workflow with:
 
@@ -130,7 +132,8 @@ Use this **instead of Step 4** when `--parallel` is set. It implements file-disj
   "repo_root": "<repo root>",
   "library_path": "<zettel library path>",
   "test_cmd": "<test-cmd>",
-  "migration_base": <first free migration number>
+  "migration_base": <first free migration number>,
+  "base_sha": "<git rev-parse HEAD on the red-tests branch>"
 }
 ```
 

@@ -15,7 +15,7 @@ export const meta = {
 //   migration_base: number,      // first free migration number (e.g. 19)
 //   migrations_dir?: string,     // default "migrations"
 // }
-const { gaps, repo_root, library_path, test_cmd, migration_base, migrations_dir } = args
+const { gaps, repo_root, library_path, test_cmd, migration_base, migrations_dir, base_sha } = args
 const migDir = migrations_dir || 'migrations'
 
 if (!gaps || gaps.length === 0) {
@@ -111,7 +111,15 @@ const IMPL_SCHEMA = {
 const results = await parallel(clusterSpecs.map(c => () => agent(
   `You are IMPLEMENTING one file-disjoint cluster of spec gaps, in an isolated git worktree. Make the target tests pass with minimal production changes. Do NOT modify test files. Do NOT edit zettels.
 
-First run: git switch -c ${c.branch}
+WORKTREE SETUP (do this FIRST, exactly):
+- You are in an isolated worktree, but it may have been forked from a STALE commit. The integration base is ${base_sha || '<base_sha not provided — ask orchestrator>'}.
+- Run \`git rev-parse HEAD\`. If it is not ${base_sha || 'the integration base'}, run \`git reset --hard ${base_sha || '<base_sha>'}\` so your tree matches the branch that carries the target tests (otherwise the tests/ dir and recent source will be missing and you cannot verify your work).
+- Then: \`git switch -c ${c.branch}\`
+
+WORKTREE ISOLATION (hard rules — violating these corrupts the shared repo):
+- Operate ONLY inside your current worktree directory. Run every git/cargo command from here.
+- NEVER cd to or run git against the main checkout (${repo_root}). NEVER \`git switch\`/commit onto any branch other than ${c.branch}. NEVER \`git add -A\` outside this worktree.
+- Commit only to ${c.branch}. The orchestrator integrates branches; you never merge.
 
 Target gaps (make each test pass):
 ${c.members.map(p => `- ${p.id}: ${p.summary || ''} (files: ${(p.files || []).join(', ') || '?'})`).join('\n')}
