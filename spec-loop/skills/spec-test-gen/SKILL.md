@@ -120,6 +120,8 @@ Use `snake_case` derived from the claim text (lowercase, strip punctuation, repl
 
 Do not delete any existing tests.
 
+> Handoff: the `// FIXME: claim changed` markers (and the new stubs) are acted on downstream by **spec-test-author**, which re-authors changed tests' bodies to the current claim and quarantines tests whose claim was removed. This skill only *detects and marks*; it never rewrites real assertions or deletes tests.
+
 ## Step 6 — Update zettel frontmatter
 
 After writing all test files for a zettel, update the zettel's frontmatter `tests:` field to list every test file that covers a claim from this zettel (absolute paths or paths relative to the repo root — prefer relative):

@@ -150,3 +150,12 @@ Committed: <short SHA> — <commit message first line>
 ```
 
 If any non-fatal gaps remain (non-blocking open questions, zettels with no testable claims, coverage failures), list them under "Remaining items for manual review:".
+
+## Next step in the loop
+
+spec-lock only *detects and marks* spec changes — it leaves new claims as **ignored `todo!()` stubs**, marks changed claims with `// FIXME: claim changed` (via spec-test-gen), and never deletes tests. None of those become real, correct, failing tests here. The loop continues:
+
+1. **spec-test-author** — reconciles the suite to the current spec without writing production code: authors new stubs into real failing tests, re-authors changed-claim tests to the current claim, and quarantines orphaned tests whose claim was removed.
+2. **spec-build** — implements production code until those tests pass.
+
+Run `spec-test-author` next, then `spec-build`.

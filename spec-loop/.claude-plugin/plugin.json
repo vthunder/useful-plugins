@@ -1,6 +1,6 @@
 {
   "name": "spec-loop",
-  "description": "Spec-driven development loop — spec-lock (Loop 1: audit + test stubs) and spec-build (Loop 2: implement from failing tests)",
+  "description": "Spec-driven development loop — spec-lock (audit + test stubs) → spec-test-author (stubs → real failing tests) → spec-build (implement to green)",
   "author": {
     "name": "Dan Mills"
   },

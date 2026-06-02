@@ -36,6 +36,8 @@ Run `<test-cmd>` and capture all output (stdout + stderr). Note:
 
 If all tests pass immediately, report success and exit — nothing to do.
 
+**On ignored stubs:** test runners skip `#[ignore]` / `test.todo` placeholders (written by spec-lock), so they show as *ignored*, not *failing* — spec-build will not see or implement them. spec-build only acts on tests that are already real and failing, and never authors or un-ignores tests. If you have a large ignored count and expected this skill to implement those claims, run **spec-test-author** first to convert the stubs into real failing tests, then re-run spec-build.
+
 ## Step 3 — Parse failures into gap report (parallel)
 
 Collect the list of failing tests from the test runner output. For each failing test, extract the test name, file path, line number, and first ~20 lines of failure output.
