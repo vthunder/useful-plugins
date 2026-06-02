@@ -98,7 +98,15 @@ Run `<test-cmd> <filter-for-this-test>` to verify the single test now passes:
 If the test still fails:
 - Read the new failure message carefully.
 - If it reveals a possible spec ambiguity: invoke the Workflow tool with `scriptPath` set to `<installPath>/workflows/spec-build-gap-parse.js` (same path resolution as step 3) for just this one test (passing a single-element `failing_tests` array). The workflow's 3-interpreter adversarial pass will determine whether the ambiguity is genuine. If the workflow returns the gap still classified as `ambiguous`, escalate to step 6. If it's resolved to `assertion`, continue fixing.
-- If it is a code error (not a spec ambiguity): fix and re-run. Limit to 3 fix attempts per gap. If still failing after 3 attempts, mark as `blocked` and move on.
+- If it is a code error (not a spec ambiguity): fix and re-run. Limit to 3 fix attempts per gap.
+
+**A gap is only allowed to remain unimplemented if it is genuinely impossible at this layer — and then it MUST be recorded as a blocked gap with a category, a concrete reason, and a suggested resolution.** Never silently "mark blocked and move on" with no path forward. After 3 honest attempts, classify the gap into exactly one of:
+
+- **`spec-ambiguity`** — the claim is unclear or two zettels/tests contradict. → escalate to Step 6 (SPEC GAP). Resolution: which zettel/claim to change.
+- **`needs-capability`** — the test can't be driven without a missing test-harness or external capability (mock service, multi-identity auth, clock injection, network). Resolution: name the capability to add (often a spec-test-author/harness task), e.g. "rewrite to use the mock-hq non-admin identity".
+- **`environment`** — flaky/infra (no DB, disk full, port contention). Resolution: the env fix.
+
+If none of these apply, the gap is **not** blocked — keep going (return to 4b with a different approach; do not stop until it passes or genuinely fits a category above). "I didn't finish it" is not a valid blocked reason.
 
 ### 4d — Commit the gap
 
@@ -142,7 +150,7 @@ The workflow: (1) **plans** each gap in parallel (read-only) to predict the prod
 **Integrate serially (you, the orchestrator):**
 1. For each branch in `integrated`: `git merge --no-ff <branch>`. Because clusters are file-disjoint, this is conflict-free. If a merge *does* conflict, the clustering missed a shared file — abort that merge, and fall back to Step 4 (sequential) for that cluster's gaps.
 2. After merging all clean clusters, run the **full** `<test-cmd>`. The integrated tree must compile and pass; a green-per-cluster result does not guarantee a green whole.
-3. For clusters in `needs_attention` (tests didn't pass in isolation), drop to Step 4 (sequential) for their gaps on the integrated tree.
+3. **Sequential finish-up is mandatory, not optional.** The parallel run is a first pass only — its agents may submit unverified or partial work. After integration you MUST drop to the Step 4 sequential loop for **every** still-failing test, which includes: (a) `needs_attention` clusters, (b) integration regressions (tests that were green before and broke from a merge), and (c) any cluster whose work compiled but didn't actually pass. Do not treat the parallel pass as done while failures remain — finish each in Step 4 (which closes it, escalates it to a SPEC GAP, or records it as a categorized blocked gap with reason + suggested resolution). The parallel path is complete only when Step 4 has driven the full suite to the Step-6.5 completion gate.
 4. Clean up: delete merged `spec-build/cluster-*` branches and prune worktrees (`git worktree prune`).
 
 **Commit.** The cluster commits come in via merge; keep them, or squash per feature if you prefer one commit per cluster. Do not squash across clusters (loses the gap→commit traceability).
@@ -185,6 +193,19 @@ Do NOT:
 
 Surface all spec gap items to the user at the end of the report.
 
+## Step 6.5 — Completion gate
+
+spec-build may report **success only when the full suite is green.** It must never present partial completion as done, nor leave a failing test untriaged.
+
+Before the final report, every remaining failure must be in exactly one of three terminal states:
+1. **Passing** — implemented and committed.
+2. **SPEC GAP** — a genuine spec ambiguity/contradiction (Step 6), with the options laid out.
+3. **Blocked gap** — genuinely impossible at this layer, recorded with a **category** (`needs-capability` | `environment`), a **concrete reason**, and a **suggested resolution** (Step 4c).
+
+If any failure does not yet fit (2) or (3) and is not passing, you are **not done** — return to Step 4 and keep working it. "Ran out of attempts" without a category is not terminal.
+
+When failures remain (only SPEC GAPs and/or blocked gaps), **stop at this gate**: do not claim the build is complete. Present the gate to the user — each item with its reason and suggested resolution — and let them decide whether to resolve the blocker (add the harness capability, fix the spec, fix the env) and re-run, or accept it as known-unimplemented. This mirrors spec-test-author's could-not-author gate: the user, not the skill, decides to ship something unverified.
+
 ## Step 7 — Final report
 
 ```
@@ -207,11 +228,15 @@ Commits made: N
   <sha> — <message>
   ...
 
-<If blocked gaps exist:>
-Blocked gaps (require manual investigation):
-  [<n>] <test-name> — <last failure message>
+<If blocked gaps exist — DECISION GATE, build is NOT complete:>
+Blocked gaps (your call: resolve & re-run, or accept as unverified):
+  [<n>] <test-name>  (category: needs-capability | environment)
+       why: <concrete reason it can't be implemented at this layer>
+       to resolve: <suggested fix — harness capability / env fix / spec-test-author task>
 
 <If spec gaps exist:>
 Spec gaps (require spec update before re-running):
   [SPEC GAP N] ...
 ```
+
+End with an explicit status line: `All tests passing — build complete.` only when there are zero failures; otherwise `Build paused at gate: N spec gap(s), N blocked gap(s) — awaiting your decision.`
