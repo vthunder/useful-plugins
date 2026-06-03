@@ -106,6 +106,7 @@ If the test still fails:
 - **`spec-ambiguity`** — the claim is unclear or two zettels/tests contradict. → escalate to Step 6 (SPEC GAP). Resolution: which zettel/claim to change.
 - **`needs-capability`** — the test can't be driven without a missing test-harness or external capability (mock service, multi-identity auth, clock injection, network). Resolution: name the capability to add (often a spec-test-author/harness task), e.g. "rewrite to use the mock-hq non-admin identity".
 - **`environment`** — flaky/infra (no DB, disk full, port contention). Resolution: the env fix.
+- **`test-defect`** — the failing test is itself wrong: it fails before/independent of the claim (compile error, panic in arrange/setup such as a duplicate-key seed collision, a false-positive or over-strict assertion such as matching a substring that legitimately appears, references a symbol/field that doesn't exist, or mis-drives an interactive/PTY flow), so the production behavior it names is actually correct or untouched. spec-build does **not** edit tests and does **not** implement production code to satisfy a buggy test. Resolution: route it back to **spec-test-author** to re-author the test, passing the concrete runtime failure (the panic/compile error and which line), or surface it to the driver to fix the test. To distinguish a test-defect from a real gap: a faithful red test fails at an **assertion about the claim**; a failure in setup/compile/infra signals a defect.
 
 If none of these apply, the gap is **not** blocked — keep going (return to 4b with a different approach; do not stop until it passes or genuinely fits a category above). "I didn't finish it" is not a valid blocked reason.
 
@@ -203,14 +204,17 @@ Surface all spec gap items to the user at the end of the report.
 
 spec-build may report **success only when the full suite is green.** It must never present partial completion as done, nor leave a failing test untriaged.
 
-Before the final report, every remaining failure must be in exactly one of three terminal states:
+Before the final report, every remaining failure must be in exactly one of these terminal states:
 1. **Passing** — implemented and committed.
 2. **SPEC GAP** — a genuine spec ambiguity/contradiction (Step 6), with the options laid out.
 3. **Blocked gap** — genuinely impossible at this layer, recorded with a **category** (`needs-capability` | `environment`), a **concrete reason**, and a **suggested resolution** (Step 4c).
+4. **Test-defect** — the test itself is buggy (Step 4c, category `test-defect`). spec-build does not implement production code for it; instead it is surfaced to the user/driver and ideally routed to **spec-test-author** for re-authoring, carrying the concrete runtime failure. The fix here is a test re-author, not production code.
 
-If any failure does not yet fit (2) or (3) and is not passing, you are **not done** — return to Step 4 and keep working it. "Ran out of attempts" without a category is not terminal.
+If any failure does not yet fit (2), (3), or (4) and is not passing, you are **not done** — return to Step 4 and keep working it. "Ran out of attempts" without a category is not terminal.
 
-When failures remain (only SPEC GAPs and/or blocked gaps), **stop at this gate**: do not claim the build is complete. Present the gate to the user — each item with its reason and suggested resolution — and let them decide whether to resolve the blocker (add the harness capability, fix the spec, fix the env) and re-run, or accept it as known-unimplemented. This mirrors spec-test-author's could-not-author gate: the user, not the skill, decides to ship something unverified.
+While any test-defects remain, spec-build is still **not complete** — but note the resolution is a test re-author (via spec-test-author), not production code.
+
+When failures remain (only SPEC GAPs, blocked gaps, and/or test-defects), **stop at this gate**: do not claim the build is complete. Present the gate to the user — each item with its reason and suggested resolution — and let them decide whether to resolve the blocker (add the harness capability, fix the spec, fix the env, re-author the defective test) and re-run, or accept it as known-unimplemented. This mirrors spec-test-author's could-not-author gate: the user, not the skill, decides to ship something unverified.
 
 ## Step 7 — Final report
 
@@ -229,6 +233,7 @@ Gaps found:       N
 Gaps closed:      N  (all tests passing)
 Gaps blocked:     N  (listed below)
 Spec gaps:        N  (listed below)
+Test-defects:     N  (listed below)
 
 Commits made: N
   <sha> — <message>
@@ -243,6 +248,12 @@ Blocked gaps (your call: resolve & re-run, or accept as unverified):
 <If spec gaps exist:>
 Spec gaps (require spec update before re-running):
   [SPEC GAP N] ...
+
+<If test-defects exist — the test is buggy, fix is a re-author not production code:>
+Test-defects (the failing test is itself wrong — do NOT implement production for it):
+  [<n>] <test-name>
+       failure: <the concrete runtime failure — panic/compile error and which line>
+       route: re-author via spec-test-author
 ```
 
-End with an explicit status line: `All tests passing — build complete.` only when there are zero failures; otherwise `Build paused at gate: N spec gap(s), N blocked gap(s) — awaiting your decision.`
+End with an explicit status line: `All tests passing — build complete.` only when there are zero failures; otherwise `Build paused at gate: N spec gap(s), N blocked gap(s), N test-defect(s) — awaiting your decision.`

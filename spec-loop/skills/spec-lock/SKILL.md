@@ -66,9 +66,13 @@ For each issue found:
    ```
    The workflow returns `approved` and `rejected` arrays; each entry carries `fix_index` (its position in the file) and `zettel_id` — map `approved[].fix_index` back to the fixes you wrote. Apply only the `approved` fixes. For `rejected` fixes, report the reviewer concerns to the user — do not apply them silently.
 4. Apply the approved fixes using `zettel-edit`.
-5. After applying fixes, re-run `zettel-audit`. Repeat until audit is clean.
+5. After applying fixes, re-run `zettel-audit`. Each cycle, fix only the **new** findings (don't re-litigate ones already decided in an earlier cycle).
 
-**Safety limit:** If the audit is still not clean after 5 fix-and-reaudit cycles, stop and report all remaining issues to the user for manual resolution. Do not commit partial work.
+**Termination — stochastic audit.** The semantic audit is stochastic: each pass surfaces a different subset of findings, so "one pass returns zero" is not a stable fixed point and re-running can keep surfacing pre-existing, unrelated drift. Track the set of findings across passes and stop when a pass surfaces **no new findings** versus the previous pass (i.e. two consecutive passes with no new items), OR after the 5-cycle safety limit, whichever comes first. Here "clean" means "no new findings," not "a single pass returned zero."
+
+**Audit scope — blast radius.** Target the audit at the changed zettels' **blast radius**: the changed zettels themselves, plus zettels that link to/from them and those sharing their tags or domain vocabulary — rather than necessarily the whole library. This keeps the loop from repeatedly surfacing unrelated historical drift. A full-library audit remains available when explicitly requested.
+
+**Safety limit:** If the audit is still surfacing new findings after 5 fix-and-reaudit cycles, stop and report all remaining issues to the user for manual resolution. Do not commit partial work.
 
 ## Step 3 — Test generation (parallel)
 
@@ -92,7 +96,7 @@ The workflow runs `spec-test-gen` on all changed zettels in parallel, retries an
 - `uncovered` — list of zettel paths that still lack `tests:` frontmatter after retry
 - `total_stubs_written`, `total_stubs_updated`
 - `completeness` — per-zettel post-remediation verdict (`confirmed_missing`, `confirmed_spurious`)
-- `incomplete` — zettels with claims STILL missing a stub after remediation: `[{ zettel_path, missing_claims }]`. **This is the hard-stop list.**
+- `incomplete` — zettels with claims STILL missing a stub after remediation: `[{ zettel_path, missing_claims }]`. Each missing claim must be **labeled blocking or advisory** (see Step 4); only **blocking** items are a hard stop.
 - `spurious_stubs` — stubs that map to no current claim (review items, non-blocking)
 - `total_missing_remediated` — count of missing claims the completeness pass recovered
 
@@ -104,10 +108,16 @@ Inspect the workflow result:
 - Any path in `uncovered` represents a zettel that failed to get `tests:` frontmatter after retry. Report it and continue (do not block the commit on this alone).
 - All other zettels in `results` with `covered: true` are done.
 
-**Completeness is a hard gate.** If `incomplete` is non-empty, the completeness critics confirmed (2/2) that one or more testable claims have no test even after remediation — i.e. a silent coverage hole the loop exists to prevent. **Do not commit and do not proceed to spec-test-author.** Stop and surface each item:
+**Label each incomplete item before gating.** The completeness critics re-enumerate ALL claims in a zettel, so editing one claim can surface pre-existing untested claims the change never touched. Label each item in `incomplete`:
+- **blocking** — the claim is NEW or CHANGED in this revision: a genuine coverage hole the change introduced.
+- **advisory** — a pre-existing untested claim surfaced incidentally; the change didn't touch it.
+
+New-vs-pre-existing is determined by whether the claim text is new or changed in the revision being locked — check the git diff of the zettel since the base ref (`<ref>` from Step 1).
+
+**Only blocking items are a hard gate.** If any **blocking** item exists, the completeness critics confirmed (2/2) a new/changed testable claim with no test even after remediation — a silent coverage hole the loop exists to prevent. **Do not commit and do not proceed to spec-test-author.** Stop and surface each blocking item:
 
 ```
-⛔ COMPLETENESS GATE — N testable claim(s) have no test after remediation:
+⛔ COMPLETENESS GATE — N new/changed testable claim(s) have no test after remediation:
   <zettel-id> (<zettel_path>)
     - <missing claim description>  [why testable: <category>]
   ...
@@ -117,6 +127,14 @@ Your call per item: (a) add the missing test stub manually (or fix spec-test-gen
 ```
 
 This mirrors the other spec-loop gates: the skill stops and lets the human decide; it does not silently ship an uncovered claim. Wait for the user's decision — do not proceed on your own.
+
+**Advisory items do not block.** Report them under "pre-existing coverage holes (non-blocking)" so the user can backfill later, and continue past the gate:
+
+```
+Pre-existing coverage holes (non-blocking) — untested claims the change didn't touch:
+  <zettel-id> (<zettel_path>)
+    - <missing claim description>
+```
 
 If `spurious_stubs` is non-empty, list them under "Review (non-blocking) — stubs with no matching claim:" so the user can prune stale tests later. Do not delete them automatically.
 
@@ -146,7 +164,7 @@ Completeness: clean (or "recovered <N> missing claim(s)")
 
 Commit with `git commit -m "..."`.
 
-Reaching this step means the completeness gate passed (`incomplete` was empty); a non-empty `incomplete` would have stopped the skill at Step 4 before any commit.
+Reaching this step means the completeness gate passed (no **blocking** items); any blocking item would have stopped the skill at Step 4 before any commit. Advisory pre-existing holes, if any, are reported but do not block.
 
 ## Step 6 — Report
 
@@ -167,7 +185,8 @@ Test stubs updated: N
 
 Completeness check: 2 blind critics + reconcile per zettel
   Missing claims recovered (remediated): N
-  Confirmed-missing after remediation: 0   (else the skill stopped at the Step 4 gate)
+  Blocking missing after remediation: 0   (else the skill stopped at the Step 4 gate)
+  Advisory pre-existing holes (non-blocking): N
   Spurious stubs flagged for review: N
 
 Committed: <short SHA> — <commit message first line>

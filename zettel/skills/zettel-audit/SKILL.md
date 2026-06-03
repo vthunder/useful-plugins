@@ -81,18 +81,30 @@ task list with no args defaults to assigned-to-me view
 
 Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `zettel@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/zettel-audit-semantic.js`.
 
-Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
+**Write a compact corpus *digest* to a file, then pass the file path** (uniform file contract — never inline the corpus; full bodies are large and inline `args` get corrupted/expensive). The digest is a projection, not the raw bodies: drop the prose exposition and keep the *checkable surface*. Build it from the inventories you already extracted in Step 3 — one entry per zettel:
+
+```json
+[{ "id": "...", "path": "<abs path to the .md>", "links": [...],
+   "claims": ["..."], "interfaces": ["cmd/route/flag → where"],
+   "data_model": ["table.column → where"], "terms": ["term → meaning"] }]
+```
+
+Write that array to an absolute path (e.g. `<repo>/.zettel/audit-digest.json`), then invoke the Workflow tool with `scriptPath` set to the resolved path, passing:
 
 ```json
 {
-  "corpus": [{ "id": "...", "title": "...", "tags": [...], "links": [...], "external_links": [...], "body": "...", "path": "..." }],
+  "corpus_file": "<abs path to audit-digest.json>",
+  "library_path": "<resolved library path>",
   "library_name": "<name>",
   "library_kind": "release-spec | evergreen",
+  "zettel_count": <N>,
   "focus_slugs": ["slug1", "slug2"]
 }
 ```
 
-The workflow fans out all 7 check dimensions (interface contradictions, data model conflicts, behavioral contradictions, stale claims, unspecced dependencies, terminology inconsistency, open questions) as parallel agents, then runs adversarial verification on all high- and medium-confidence findings before returning. False positives are filtered before the report is produced.
+> **Projection, not partition.** A consistency audit is inherently cross-cutting — a contradiction can span any pair of zettels — so do **not** shard the corpus into per-zettel/per-topic pieces and give each agent one piece (you'd miss cross-piece findings). Instead the *whole-library digest* gives every agent breadth at a fraction of the bytes, and agents **read the full source of the specific zettels a candidate finding involves** to confirm exact wording (depth). For `--focus` runs you may render the focused zettels at full detail and the rest as digest entries.
+
+The workflow fans out all 7 check dimensions (interface contradictions, data model conflicts, behavioral contradictions, stale claims, unspecced dependencies, terminology inconsistency, open questions) as parallel agents — each reads the digest for breadth and re-reads sources to confirm — then runs adversarial verification on all high- and medium-confidence findings before returning. False positives are filtered before the report is produced.
 
 The workflow returns:
 - `findings` — verified findings, each with `kind`, `slugs`, `description`, `quote_a`, `quote_b`, `suggested_resolution`, `confidence`, `blocks_implementation`
