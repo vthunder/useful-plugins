@@ -10,7 +10,8 @@ export const meta = {
 }
 
 // args: { zettels: string[], library_path: string, test_dir?: string }
-const { zettels, library_path, test_dir } = args
+const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
+const { zettels, library_path, test_dir } = _args
 
 if (!zettels || zettels.length === 0) {
   log('No changed zettels passed — nothing to do.')

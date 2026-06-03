@@ -18,7 +18,8 @@ export const meta = {
 //   library_path: string,
 //   test_dir: string,
 // }
-const { failing_tests, library_path, test_dir } = args
+const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
+const { failing_tests, library_path, test_dir } = _args
 
 if (!failing_tests || failing_tests.length === 0) {
   return { gaps: [], gap_report: 'No failing tests to classify.' }

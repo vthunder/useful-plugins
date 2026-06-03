@@ -15,7 +15,8 @@ export const meta = {
 //   migration_base: number,      // first free migration number (e.g. 19)
 //   migrations_dir?: string,     // default "migrations"
 // }
-const { gaps, repo_root, library_path, test_cmd, migration_base, migrations_dir, base_sha } = args
+const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
+const { gaps, repo_root, library_path, test_cmd, migration_base, migrations_dir, base_sha } = _args
 const migDir = migrations_dir || 'migrations'
 
 if (!gaps || gaps.length === 0) {

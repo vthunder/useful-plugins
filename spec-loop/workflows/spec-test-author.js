@@ -13,7 +13,8 @@ export const meta = {
 //   library_path: string,
 //   conventions?: string,
 // }
-const { stub_files, library_path, conventions } = args
+const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
+const { stub_files, library_path, conventions } = _args
 
 if (!stub_files || stub_files.length === 0) {
   log('No files to reconcile — suite already matches the spec.')

@@ -16,7 +16,8 @@ export const meta = {
 //   }>,
 //   library_path: string,
 // }
-const { proposed_fixes, library_path } = args
+const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
+const { proposed_fixes, library_path } = _args
 
 if (!proposed_fixes || proposed_fixes.length === 0) {
   return { approved: [], rejected: [] }
