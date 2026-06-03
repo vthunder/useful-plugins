@@ -10,8 +10,25 @@ export const meta = {
 }
 
 // args: { zettels: string[], library_path: string, test_dir?: string }
-const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
-const { zettels, library_path, test_dir } = _args
+// Parse args defensively. The runtime may deliver `args` as a JSON string (and can
+// corrupt inline strings longer than ~500 chars). Zettel paths are compact, so they
+// stay inline; if you ever change enough zettels to approach the limit, pass fewer
+// per call. See the skill's "compact args" note.
+function parseArgs(a) {
+  if (a == null) return {}
+  if (typeof a !== 'string') return a
+  try {
+    return JSON.parse(a)
+  } catch (e) {
+    throw new Error(
+      `spec-loop/spec-lock-test-gen: args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Inline args over ~500 chars can be corrupted in transit — pass fewer zettels per invocation. ` +
+      `Underlying error: ${e.message}`
+    )
+  }
+}
+
+const { zettels, library_path, test_dir } = parseArgs(args)
 
 if (!zettels || zettels.length === 0) {
   log('No changed zettels passed — nothing to do.')

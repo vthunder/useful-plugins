@@ -53,23 +53,16 @@ If all three lists are empty, report "Test suite already matches the spec" and e
 
 Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `spec-loop@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/spec-test-author.js`.
 
-Invoke the Workflow tool with `scriptPath` set to that path, passing one entry per stub/affected **file** (stubs and tests in a file share fixtures/imports, so one agent per file avoids churn and merge conflicts):
+Invoke the Workflow tool with `scriptPath` set to that path. **Use the compact `files` contract** — pass just the list of affected test-file paths (one agent per file; each agent re-discovers the NEW/CHANGED/ORPHANED work by scanning its own file and the stub markers / `spec:` comments in it):
 
 ```json
 {
-  "stub_files": [
-    {
-      "file": "<test file path>",
-      "zettel_ids": ["<id>", ...],
-      "new": ["<fn>", ...],
-      "changed": ["<fn>", ...],
-      "orphaned": ["<fn>", ...]
-    }
-  ],
-  "library_path": "<resolved library path>",
-  "conventions": "<short note: fixtures, client, seed helpers, time-relative seeding>"
+  "files": ["<test file path>", "..."],
+  "library_path": "<resolved library path>"
 }
 ```
+
+> **Compact args (important).** The Workflow runtime can **corrupt inline `args` longer than ~500 chars** (it arrives as a complete-but-invalid JSON string and the workflow throws a parse error). Keep the payload small: pass `files` (paths only), **not** the verbose `stub_files` with per-fn `new`/`changed`/`orphaned` arrays, and **omit `conventions`** — each agent infers fixtures/seed-helpers from sibling real tests anyway. The legacy `stub_files` / `conventions` shape is still accepted for small payloads, but prefer `files`. Your Step-2 scan still drives the human-facing report; the agents just re-derive the per-file work.
 
 Each agent, for its file:
 - **NEW** → writes a real arrange/act/assert body from the current claim; removes `#[ignore]`.

@@ -56,22 +56,15 @@ For each issue found:
    - Interface mismatch → reconcile the described interface with the implementation by updating the zettel body.
    - Stale claim → update the zettel body to reflect current behavior.
    - Blocking open question → surface it to the user as a spec gap and **do not proceed** until answered. Non-blocking open questions: note them and continue.
-3. Before applying fixes, resolve the workflow script path (`spec-loop@useful-plugins` installPath from `~/.claude/plugins/installed_plugins.json`, then `<installPath>/workflows/spec-lock-audit-verify.js`). Invoke the Workflow tool with `scriptPath` set to that path, passing all proposed fixes for this audit cycle as a batch:
+3. Before applying fixes, resolve the workflow script path (`spec-loop@useful-plugins` installPath from `~/.claude/plugins/installed_plugins.json`, then `<installPath>/workflows/spec-lock-audit-verify.js`). **Write the proposed fixes to a file, then pass the file path** (fix descriptions can be long; inline `args` over ~500 chars get corrupted in transit). Write a JSON array — one object per fix `{ issue_kind, zettel_path, zettel_id, issue_description, proposed_change }` (`issue_kind` ∈ broken-link | contradiction | stale-claim | interface-mismatch) — to an absolute path (e.g. `<repo>/.spec-loop/audit-fixes.json`), then invoke Workflow with the compact reference:
    ```json
    {
-     "proposed_fixes": [
-       {
-         "issue_kind": "broken-link | contradiction | stale-claim | interface-mismatch",
-         "zettel_path": "<path>",
-         "zettel_id": "<id>",
-         "issue_description": "<what the audit found>",
-         "proposed_change": "<natural-language description of the edit>"
-       }
-     ],
+     "fixes_file": "<abs path to audit-fixes.json>",
+     "fix_count": <N>,
      "library_path": "<library path>"
    }
    ```
-   The workflow returns `approved` and `rejected` arrays. Apply only the `approved` fixes. For `rejected` fixes, report the reviewer concerns to the user — do not apply them silently.
+   The workflow returns `approved` and `rejected` arrays. In file mode each entry carries `fix_index` (its position in the file) and `zettel_id` — map `approved[].fix_index` back to the fixes you wrote. Apply only the `approved` fixes. For `rejected` fixes, report the reviewer concerns to the user — do not apply them silently. (Inline `proposed_fixes: [...]` still works for a single small fix.)
 4. Apply the approved fixes using `zettel-edit`.
 5. After applying fixes, re-run `zettel-audit`. Repeat until audit is clean.
 
@@ -90,6 +83,8 @@ Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
   "test_dir": "<test dir if known, else omit>"
 }
 ```
+
+> **Compact args.** Zettel paths are short, so they stay inline. But the Workflow runtime can **corrupt inline `args` longer than ~500 chars** (delivered as a complete-but-invalid JSON string → parse error). If a single lock touches enough zettels to approach that, split into multiple invocations rather than one large batch.
 
 The workflow runs `spec-test-gen` on all changed zettels in parallel, retries any that fail to stamp `tests:` frontmatter, then runs an **always-on completeness check** (two blind critics re-enumerate each zettel's testable claims and a reconciler keeps only the claims BOTH independently flag as unstubbed — a 2/2 vote). Any confirmed-missing claim is remediated (stubs re-generated) and re-verified once. It returns:
 - `results` — per-zettel summary (stubs written, test files, covered flag)

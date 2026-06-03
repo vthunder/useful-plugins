@@ -15,11 +15,35 @@ export const meta = {
 //   migration_base: number,      // first free migration number (e.g. 19)
 //   migrations_dir?: string,     // default "migrations"
 // }
-const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
-const { gaps, repo_root, library_path, test_cmd, migration_base, migrations_dir, base_sha } = _args
-const migDir = migrations_dir || 'migrations'
+// Parse args defensively. The runtime may deliver `args` as a JSON string (and can
+// corrupt inline strings over ~500 chars). Gap lists are bulky, so prefer the compact
+// file contract: write gaps to a JSON file and pass { gaps_file: "<abs path>", gap_count: N }
+// alongside the scalars — see the skill's "compact args" note.
+function parseArgs(a) {
+  if (a == null) return {}
+  if (typeof a !== 'string') return a
+  try {
+    return JSON.parse(a)
+  } catch (e) {
+    throw new Error(
+      `spec-loop/spec-build-impl: args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Gap lists are bulky and inline args over ~500 chars can be corrupted in transit — ` +
+      `write gaps to a file and pass { gaps_file, gap_count, ...scalars } instead. ` +
+      `Underlying error: ${e.message}`
+    )
+  }
+}
 
-if (!gaps || gaps.length === 0) {
+const A = parseArgs(args)
+const { repo_root, library_path, test_cmd, migration_base, migrations_dir, base_sha } = A
+const migDir = migrations_dir || 'migrations'
+const gapsFile = A.gaps_file
+// File mode: index markers; each planning agent reads its own gap record from the file.
+const gaps = (A.gaps && A.gaps.length)
+  ? A.gaps.map((g, i) => ({ ...g, _i: i }))
+  : (gapsFile ? Array.from({ length: A.gap_count || 0 }, (_, i) => ({ _i: i, _file: gapsFile })) : [])
+
+if (gaps.length === 0) {
   return { clusters: [], note: 'no gaps' }
 }
 
@@ -35,14 +59,20 @@ const PLAN_SCHEMA = {
   required: ['id', 'files', 'needs_migrations'],
 }
 
+const gapBlock = g => g._file
+  ? `Your gap record is element [${g._i}] of the JSON array in the file:
+  ${g._file}
+Read that file, parse it, and use entry [${g._i}] — fields: id, test_name, test_file, zettel_id, claim, failure_summary. Return that record's \`id\` as your \`id\`.`
+  : `Gap ${g.id}: test ${g.test_name} in ${g.test_file}
+${g.zettel_id ? `Spec: ${g.zettel_id} claim ${g.claim || '?'}` : ''}
+Failure: ${g.failure_summary || ''}`
+
 const plans = await pipeline(
   gaps,
   g => agent(
     `You are PLANNING (not implementing) the fix for one failing spec test. Read-only.
 
-Gap ${g.id}: test ${g.test_name} in ${g.test_file}
-${g.zettel_id ? `Spec: ${g.zettel_id} claim ${g.claim || '?'}` : ''}
-Failure: ${g.failure_summary || ''}
+${gapBlock(g)}
 Repo root: ${repo_root}   Zettel library: ${library_path}
 
 Read the test, the referenced zettel claim, and the production code involved. Then predict:
@@ -50,8 +80,8 @@ Read the test, the referenced zettel claim, and the production code involved. Th
 2. needs_migrations — how many new SQL migration files the fix requires (0 if none).
 3. summary — one line on the approach.
 
-Do NOT edit anything. Return the structured plan only.`,
-    { label: `plan:${g.id}`, phase: 'Plan', schema: PLAN_SCHEMA }
+Do NOT edit anything. Return the structured plan only (id = the gap's id).`,
+    { label: g._file ? `plan:#${g._i}` : `plan:${g.id}`, phase: 'Plan', schema: PLAN_SCHEMA }
   )
 )
 

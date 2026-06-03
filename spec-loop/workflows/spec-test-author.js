@@ -13,8 +13,32 @@ export const meta = {
 //   library_path: string,
 //   conventions?: string,
 // }
-const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
-const { stub_files, library_path, conventions } = _args
+// Parse args defensively. The runtime may deliver `args` as a JSON string
+// (and can CORRUPT inline strings longer than ~500 chars), so prefer the compact
+// file-based contract for large payloads — see the skill's "compact args" note.
+function parseArgs(a) {
+  if (a == null) return {}
+  if (typeof a !== 'string') return a
+  try {
+    return JSON.parse(a)
+  } catch (e) {
+    throw new Error(
+      `spec-loop/spec-test-author: args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Inline args over ~500 chars can be corrupted in transit — pass test files as a compact ` +
+      `{ files: ["tests/foo.rs", ...], library_path } payload instead of inlining stub_files/conventions. ` +
+      `Underlying error: ${e.message}`
+    )
+  }
+}
+
+const A = parseArgs(args)
+const { library_path, conventions } = A
+// Compact contract: `files` is just an array of test-file paths; each agent
+// self-discovers the NEW/CHANGED/ORPHANED work by scanning its file (the stub
+// markers and `spec:` comments live there). Legacy `stub_files` still supported.
+const stub_files = (A.stub_files && A.stub_files.length)
+  ? A.stub_files
+  : (A.files || []).map(f => (typeof f === 'string' ? { file: f } : f))
 
 if (!stub_files || stub_files.length === 0) {
   log('No files to reconcile — suite already matches the spec.')

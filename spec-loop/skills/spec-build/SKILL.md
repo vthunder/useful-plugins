@@ -45,17 +45,18 @@ Collect the list of failing tests from the test runner output. For each failing 
 
 Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `spec-loop@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/spec-build-gap-parse.js`.
 
-Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
+**Write the failing tests to a file, then pass the file path** (failure outputs are bulky and inline `args` over ~500 chars get corrupted in transit). Write a JSON array — one object per failing test `{ name, file, line, failure_output }` — to an absolute path (e.g. `<repo>/.spec-loop/failures.json`), then invoke the Workflow tool with `scriptPath` set to the resolved path, passing the compact reference:
 
 ```json
 {
-  "failing_tests": [
-    { "name": "<test-name>", "file": "<path>", "line": 42, "failure_output": "<first 20 lines>" }
-  ],
+  "failures_file": "<abs path to failures.json>",
+  "failing_count": <N>,
   "library_path": "<resolved zettel library path>",
   "test_dir": "<test dir>"
 }
 ```
+
+Each classifier agent reads element `[i]` of that file. (For a single failing test the inline `failing_tests: [...]` shape still works, but prefer the file for anything larger.)
 
 The workflow classifies all failing tests in parallel (one agent per test), then runs 3-interpreter adversarial verification on any `ambiguous` classifications to filter false positives — tests that look ambiguous but actually have a clear spec interpretation are downgraded to `assertion`. Results are sorted into processing order: `compile` first, then `stub`, then `assertion`, `ambiguous` last.
 
@@ -134,9 +135,12 @@ Use this **instead of Step 4** when `--parallel` is set. It implements file-disj
 
 **Run the workflow.** Resolve `spec-loop@useful-plugins` installPath; the script is `<installPath>/workflows/spec-build-impl.js`. Invoke Workflow with:
 
+**Write the gaps to a file, then pass the file path** (gap lists are bulky; inline `args` over ~500 chars get corrupted in transit). Write a JSON array — one object per gap `{ id, test_name, test_file, zettel_id, claim, failure_summary }` — to an absolute path (e.g. `<repo>/.spec-loop/gaps.json`), then invoke Workflow with the compact reference plus the scalars:
+
 ```json
 {
-  "gaps": [{ "id": "g1", "test_name": "...", "test_file": "...", "zettel_id": "...", "claim": 3, "failure_summary": "..." }],
+  "gaps_file": "<abs path to gaps.json>",
+  "gap_count": <N>,
   "repo_root": "<repo root>",
   "library_path": "<zettel library path>",
   "test_cmd": "<test-cmd>",
@@ -144,6 +148,8 @@ Use this **instead of Step 4** when `--parallel` is set. It implements file-disj
   "base_sha": "<git rev-parse HEAD on the red-tests branch>"
 }
 ```
+
+Each planning agent reads gap `[i]` from that file and returns the record's `id`. (Inline `gaps: [...]` still works for a single gap.)
 
 The workflow: (1) **plans** each gap in parallel (read-only) to predict the production files and migration count it touches; (2) **clusters** gaps that share any file (union-find) so each file has one owner, and assigns each cluster a disjoint migration-number range; (3) **implements** each cluster in an isolated worktree on branch `spec-build/cluster-<i>`, creating migrations only within its assigned range, and runs that cluster's target tests. It returns `clusters`, per-cluster `results` (branch, committed, tests_passed, failing_tests), `integrated` (clean branches), and `needs_attention`.
 

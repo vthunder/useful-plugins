@@ -18,14 +18,38 @@ export const meta = {
 //   library_path: string,
 //   test_dir: string,
 // }
-const _args = typeof args === 'string' ? JSON.parse(args) : (args || {})
-const { failing_tests, library_path, test_dir } = _args
+// Parse args defensively. The runtime may deliver `args` as a JSON string (and can
+// corrupt inline strings over ~500 chars). Failure outputs are bulky, so prefer the
+// compact file contract: write the failing-test records to a JSON file and pass
+// { failures_file: "<abs path>", failing_count: N } — see the skill's "compact args" note.
+function parseArgs(a) {
+  if (a == null) return {}
+  if (typeof a !== 'string') return a
+  try {
+    return JSON.parse(a)
+  } catch (e) {
+    throw new Error(
+      `spec-loop/spec-build-gap-parse: args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Failure-output blobs are bulky and inline args over ~500 chars can be corrupted in transit — ` +
+      `write failing tests to a file and pass { failures_file, failing_count } instead. ` +
+      `Underlying error: ${e.message}`
+    )
+  }
+}
 
-if (!failing_tests || failing_tests.length === 0) {
+const A = parseArgs(args)
+const { library_path, test_dir } = A
+const failuresFile = A.failures_file
+// File mode: index markers; each agent reads its own record from the file.
+const failing = (A.failing_tests && A.failing_tests.length)
+  ? A.failing_tests.map((t, i) => ({ ...t, _i: i }))
+  : (failuresFile ? Array.from({ length: A.failing_count || 0 }, (_, i) => ({ _i: i, _file: failuresFile })) : [])
+
+if (failing.length === 0) {
   return { gaps: [], gap_report: 'No failing tests to classify.' }
 }
 
-log(`Classifying ${failing_tests.length} failing test(s) in parallel`)
+log(`Classifying ${failing.length} failing test(s) in parallel${failuresFile ? ` (from ${failuresFile})` : ''}`)
 
 const GAP_SCHEMA = {
   type: 'object',
@@ -55,21 +79,27 @@ const INTERPRETATION_SCHEMA = {
 }
 
 // Step 1: classify all failing tests in parallel
+const recordBlock = t => t._file
+  ? `Your failing-test record is element [${t._i}] of the JSON array in the file:
+  ${t._file}
+Read that file, parse it, and use entry [${t._i}] — it has fields: name, file, line, failure_output. Use them as Test name / File / line / Failure output below.`
+  : `Test name: ${t.name}
+File: ${t.file}:${t.line}
+Failure output:
+${t.failure_output}`
+
 const classifications = await pipeline(
-  failing_tests,
+  failing,
   (t, _orig, i) => agent(
     `Classify this failing test for spec-build gap analysis.
 
-Test name: ${t.name}
-File: ${t.file}:${t.line}
-Failure output:
-${t.failure_output}
+${recordBlock(t)}
 
 Library path: ${library_path}
 Test dir: ${test_dir}
 
 CLASSIFICATION TASK:
-1. Read the test file at ${t.file} to see the full test body and any spec: comment above/inside the test.
+1. Read the test file (the record's \`file\`) to see the full test body and any spec: comment above/inside the test.
 2. Extract: spec zettel ID, claim number, and description from any comment of the form:
    "spec: <zettel-id> claim <N> — <description>"
 3. Classify the failure kind:
@@ -79,8 +109,8 @@ CLASSIFICATION TASK:
    - ambiguous: failure suggests the spec itself is unclear or contradictory
 4. For ambiguous: describe exactly what is unclear (what two interpretations are possible).
 
-Return structured output.`,
-    { label: `classify:${t.name}`, phase: 'Classify gaps', schema: GAP_SCHEMA }
+Return structured output (test_name and file come from the record).`,
+    { label: t._file ? `classify:#${t._i}` : `classify:${t.name}`, phase: 'Classify gaps', schema: GAP_SCHEMA }
   )
 )
 
