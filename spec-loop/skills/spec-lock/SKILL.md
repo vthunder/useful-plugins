@@ -91,18 +91,38 @@ Invoke the Workflow tool with `scriptPath` set to that resolved path, passing:
 }
 ```
 
-The workflow runs `spec-test-gen` on all changed zettels in parallel, retries any that fail to stamp `tests:` frontmatter, and returns:
+The workflow runs `spec-test-gen` on all changed zettels in parallel, retries any that fail to stamp `tests:` frontmatter, then runs an **always-on completeness check** (two blind critics re-enumerate each zettel's testable claims and a reconciler keeps only the claims BOTH independently flag as unstubbed — a 2/2 vote). Any confirmed-missing claim is remediated (stubs re-generated) and re-verified once. It returns:
 - `results` — per-zettel summary (stubs written, test files, covered flag)
-- `uncovered` — list of zettel paths that still lack coverage after retry
+- `uncovered` — list of zettel paths that still lack `tests:` frontmatter after retry
 - `total_stubs_written`, `total_stubs_updated`
+- `completeness` — per-zettel post-remediation verdict (`confirmed_missing`, `confirmed_spurious`)
+- `incomplete` — zettels with claims STILL missing a stub after remediation: `[{ zettel_path, missing_claims }]`. **This is the hard-stop list.**
+- `spurious_stubs` — stubs that map to no current claim (review items, non-blocking)
+- `total_missing_remediated` — count of missing claims the completeness pass recovered
 
 Wait for the workflow to complete before proceeding.
 
-## Step 4 — Coverage check
+## Step 4 — Coverage check (hard gate)
 
 Inspect the workflow result:
-- Any path in `uncovered` represents a zettel that failed coverage after retry. Report it and continue (do not block the commit).
+- Any path in `uncovered` represents a zettel that failed to get `tests:` frontmatter after retry. Report it and continue (do not block the commit on this alone).
 - All other zettels in `results` with `covered: true` are done.
+
+**Completeness is a hard gate.** If `incomplete` is non-empty, the completeness critics confirmed (2/2) that one or more testable claims have no test even after remediation — i.e. a silent coverage hole the loop exists to prevent. **Do not commit and do not proceed to spec-test-author.** Stop and surface each item:
+
+```
+⛔ COMPLETENESS GATE — N testable claim(s) have no test after remediation:
+  <zettel-id> (<zettel_path>)
+    - <missing claim description>  [why testable: <category>]
+  ...
+Your call per item: (a) add the missing test stub manually (or fix spec-test-gen's conventions so it can) and re-run spec-lock, or
+(b) revise the zettel so the claim is no longer a standalone testable assertion, or
+(c) explicitly accept it as a known coverage gap and re-run spec-lock with the claim removed from scope.
+```
+
+This mirrors the other spec-loop gates: the skill stops and lets the human decide; it does not silently ship an uncovered claim. Wait for the user's decision — do not proceed on your own.
+
+If `spurious_stubs` is non-empty, list them under "Review (non-blocking) — stubs with no matching claim:" so the user can prune stale tests later. Do not delete them automatically.
 
 ## Step 5 — Commit
 
@@ -125,9 +145,12 @@ Changed zettels:
 Audit fixes: <N> (or "none")
 Test stubs added: <N>
 Test stubs updated: <N>
+Completeness: clean (or "recovered <N> missing claim(s)")
 ```
 
 Commit with `git commit -m "..."`.
+
+Reaching this step means the completeness gate passed (`incomplete` was empty); a non-empty `incomplete` would have stopped the skill at Step 4 before any commit.
 
 ## Step 6 — Report
 
@@ -146,10 +169,15 @@ Audit fixes applied: N
 Test stubs written: N
 Test stubs updated: N
 
+Completeness check: 2 blind critics + reconcile per zettel
+  Missing claims recovered (remediated): N
+  Confirmed-missing after remediation: 0   (else the skill stopped at the Step 4 gate)
+  Spurious stubs flagged for review: N
+
 Committed: <short SHA> — <commit message first line>
 ```
 
-If any non-fatal gaps remain (non-blocking open questions, zettels with no testable claims, coverage failures), list them under "Remaining items for manual review:".
+If any non-fatal gaps remain (non-blocking open questions, zettels with no testable claims, `uncovered` frontmatter failures, `spurious_stubs`), list them under "Remaining items for manual review:".
 
 ## Next step in the loop
 

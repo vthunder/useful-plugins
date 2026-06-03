@@ -60,6 +60,8 @@ Zettel: <id>
 
 If a zettel has zero testable claims, note that and skip it — do not create an empty test file.
 
+> **Completeness backstop.** This enumeration is a single pass and can silently drop a claim. When invoked via `spec-lock`, the `spec-lock-test-gen` workflow runs an always-on completeness check after generation: two independent critics re-enumerate each zettel blind, a reconciler keeps only claims BOTH flag as unstubbed (2/2 vote), and those are remediated by re-invoking this skill with the missing claims named. Aim to be complete here regardless — but know that a dropped claim is caught and either recovered or surfaced as a hard gate, not shipped.
+
 ## Step 3 — Locate test directory
 
 Detect the project's test layout:
