@@ -56,7 +56,7 @@ Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json
 }
 ```
 
-Each classifier agent reads element `[i]` of that file. (For a single failing test the inline `failing_tests: [...]` shape still works, but prefer the file for anything larger.)
+Each classifier agent reads element `[i]` of that file. **Uniform file contract:** always write the file, even for a single failing test — never inline the list (the runtime can corrupt inline `args` over ~500 chars).
 
 The workflow classifies all failing tests in parallel (one agent per test), then runs 3-interpreter adversarial verification on any `ambiguous` classifications to filter false positives — tests that look ambiguous but actually have a clear spec interpretation are downgraded to `assertion`. Results are sorted into processing order: `compile` first, then `stub`, then `assertion`, `ambiguous` last.
 
@@ -149,7 +149,7 @@ Use this **instead of Step 4** when `--parallel` is set. It implements file-disj
 }
 ```
 
-Each planning agent reads gap `[i]` from that file and returns the record's `id`. (Inline `gaps: [...]` still works for a single gap.)
+Each planning agent reads gap `[i]` from that file and returns the record's `id`. **Uniform file contract:** always write the file, even for a single gap — never inline the list.
 
 The workflow: (1) **plans** each gap in parallel (read-only) to predict the production files and migration count it touches; (2) **clusters** gaps that share any file (union-find) so each file has one owner, and assigns each cluster a disjoint migration-number range; (3) **implements** each cluster in an isolated worktree on branch `spec-build/cluster-<i>`, creating migrations only within its assigned range, and runs that cluster's target tests. It returns `clusters`, per-cluster `results` (branch, committed, tests_passed, failing_tests), `integrated` (clean branches), and `needs_attention`.
 

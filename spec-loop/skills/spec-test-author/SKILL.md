@@ -53,16 +53,19 @@ If all three lists are empty, report "Test suite already matches the spec" and e
 
 Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `spec-loop@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/spec-test-author.js`.
 
-Invoke the Workflow tool with `scriptPath` set to that path. **Use the compact `files` contract** — pass just the list of affected test-file paths (one agent per file; each agent re-discovers the NEW/CHANGED/ORPHANED work by scanning its own file and the stub markers / `spec:` comments in it):
+**Write the affected test-file paths to a file, then pass the file path.** Write a JSON array of the test-file path strings to an absolute path (e.g. `<repo>/.spec-loop/author-files.json`), then invoke the Workflow tool with `scriptPath` set to that path:
 
 ```json
 {
-  "files": ["<test file path>", "..."],
+  "files_file": "<abs path to author-files.json>",
+  "file_count": <N>,
   "library_path": "<resolved library path>"
 }
 ```
 
-> **Compact args (important).** The Workflow runtime can **corrupt inline `args` longer than ~500 chars** (it arrives as a complete-but-invalid JSON string and the workflow throws a parse error). Keep the payload small: pass `files` (paths only), **not** the verbose `stub_files` with per-fn `new`/`changed`/`orphaned` arrays, and **omit `conventions`** — each agent infers fixtures/seed-helpers from sibling real tests anyway. The legacy `stub_files` / `conventions` shape is still accepted for small payloads, but prefer `files`. Your Step-2 scan still drives the human-facing report; the agents just re-derive the per-file work.
+One agent per file; each agent re-discovers the NEW/CHANGED/ORPHANED work by scanning its own file (the stub markers and `spec:` comments live there) and infers fixtures/seed-helpers from sibling real tests — so no per-fn lists or `conventions` blob need to travel through args.
+
+> **Uniform file contract.** Every spec-loop workflow takes its list as a *file path + count*, never an inline array — so you never judge payload size or split invocations (the runtime can corrupt inline `args` over ~500 chars). Always write the file, regardless of item count. Your Step-2 scan still drives the human-facing report; the agents re-derive the per-file work.
 
 Each agent, for its file:
 - **NEW** → writes a real arrange/act/assert body from the current claim; removes `#[ignore]`.

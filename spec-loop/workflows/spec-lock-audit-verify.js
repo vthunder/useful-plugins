@@ -6,20 +6,12 @@ export const meta = {
   ],
 }
 
-// args: {
-//   proposed_fixes: Array<{
-//     issue_kind: string,        // 'broken-link' | 'contradiction' | 'stale-claim' | 'interface-mismatch'
-//     zettel_path: string,
-//     zettel_id: string,
-//     issue_description: string,
-//     proposed_change: string,   // natural-language description of the edit
-//   }>,
-//   library_path: string,
-// }
-// Parse args defensively. The runtime may deliver `args` as a JSON string (and can
-// corrupt inline strings over ~500 chars). Fix descriptions can be long, so prefer the
-// compact file contract: write proposed fixes to a JSON file and pass
-// { fixes_file: "<abs path>", fix_count: N } — see the skill's "compact args" note.
+// args (uniform file contract): { fixes_file: <abs path to JSON array of
+// { issue_kind, zettel_path, zettel_id, issue_description, proposed_change }>,
+// fix_count: N, library_path }
+// The fix list ALWAYS lives in a file — never inline — so the caller never judges
+// payload size or splits invocations. Only the path + count + library_path travel
+// through args. Results carry `fix_index` so the caller maps verdicts back to the file.
 function parseArgs(a) {
   if (a == null) return {}
   if (typeof a !== 'string') return a
@@ -27,27 +19,24 @@ function parseArgs(a) {
     return JSON.parse(a)
   } catch (e) {
     throw new Error(
-      `spec-loop/spec-lock-audit-verify: args could not be parsed as JSON (got a ${a.length}-char string). ` +
-      `Fix descriptions can be long and inline args over ~500 chars can be corrupted in transit — ` +
-      `write proposed_fixes to a file and pass { fixes_file, fix_count } instead. ` +
+      `spec-loop/spec-lock-audit-verify: control args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Args should be tiny ({ fixes_file, fix_count, library_path }); the fix list belongs in the file. ` +
       `Underlying error: ${e.message}`
     )
   }
 }
 
 const A = parseArgs(args)
-const { library_path } = A
-const fixesFile = A.fixes_file
-// File mode: index markers; each reviewer reads its own fix record from the file.
-const proposed_fixes = (A.proposed_fixes && A.proposed_fixes.length)
-  ? A.proposed_fixes.map((f, i) => ({ ...f, _i: i }))
-  : (fixesFile ? Array.from({ length: A.fix_count || 0 }, (_, i) => ({ _i: i, _file: fixesFile })) : [])
+const { fixes_file, fix_count, library_path } = A
 
-if (proposed_fixes.length === 0) {
+if (!fixes_file || !fix_count) {
   return { approved: [], rejected: [] }
 }
 
-log(`Verifying ${proposed_fixes.length} proposed fix(es) with 2 independent reviewers each${fixesFile ? ` (from ${fixesFile})` : ''}`)
+// Each reviewer reads its own fix record [i] from the file.
+const proposed_fixes = Array.from({ length: fix_count }, (_, i) => ({ _i: i }))
+
+log(`Verifying ${fix_count} proposed fix(es) with 2 independent reviewers each (records from ${fixes_file})`)
 
 const VERDICT_SCHEMA = {
   type: 'object',
@@ -64,19 +53,13 @@ const VERDICT_SCHEMA = {
 const results = await pipeline(
   proposed_fixes,
   async fix => {
-    const fixBlock = fix._file
-      ? `Your proposed-fix record is element [${fix._i}] of the JSON array in the file:
-  ${fix._file}
-Read that file, parse it, and use entry [${fix._i}] — fields: issue_kind, zettel_id, zettel_path, issue_description, proposed_change.`
-      : `Issue: ${fix.issue_kind}
-Zettel: ${fix.zettel_id} (${fix.zettel_path})
-Problem: ${fix.issue_description}
-Proposed fix: ${fix.proposed_change}`
     // Two independent reviewers per fix
     const reviews = await parallel([0, 1].map(n => () => agent(
       `You are reviewer ${n + 1} of 2 for a spec-lock audit fix. Be skeptical.
 
-${fixBlock}
+Your proposed-fix record is element [${fix._i}] of the JSON array in the file:
+  ${fixes_file}
+Read that file, parse it, and use entry [${fix._i}] — fields: issue_kind, zettel_id, zettel_path, issue_description, proposed_change.
 
 Library path: ${library_path}
 
@@ -87,7 +70,7 @@ Read the referenced zettel (the record's zettel_path). Then evaluate:
 
 Approve if the fix is minimal, correct, and safe.
 Reject if: the fix is overly broad, changes things it shouldn't, doesn't actually solve the problem, or the issue itself is a false positive.`,
-      { label: `review-${n}:${fix._file ? '#' + fix._i : fix.zettel_id}`, phase: 'Verify fixes', schema: VERDICT_SCHEMA }
+      { label: `review-${n}:#${fix._i}`, phase: 'Verify fixes', schema: VERDICT_SCHEMA }
     )))
 
     const valid = reviews.filter(Boolean)
@@ -98,14 +81,11 @@ Reject if: the fix is overly broad, changes things it shouldn't, doesn't actuall
     const concerns = valid.filter(v => !v.approved).map(v => v.concern).filter(Boolean)
     const alternatives = valid.filter(v => !v.approved && v.alternative).map(v => v.alternative)
 
-    // Inline mode echoes the full fix; file mode returns the index (so the skill can
-    // map back to the fix it wrote) plus the zettel_id the reviewers reported.
-    const identity = fix._file
-      ? { fix_index: fix._i, zettel_id: (valid[0] && valid[0].zettel_id) || '' }
-      : fix
-
+    // Return the index (so the caller maps back to the fix it wrote to the file)
+    // plus the zettel_id the reviewers reported.
     return {
-      ...identity,
+      fix_index: fix._i,
+      zettel_id: (valid[0] && valid[0].zettel_id) || '',
       approved,
       reviewer_concerns: concerns,
       suggested_alternatives: alternatives,

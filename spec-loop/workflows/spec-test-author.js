@@ -8,14 +8,13 @@ export const meta = {
   ],
 }
 
-// args: {
-//   stub_files: Array<{ file, zettel_ids: string[], new?: string[], changed?: string[], orphaned?: string[] }>,
-//   library_path: string,
-//   conventions?: string,
-// }
-// Parse args defensively. The runtime may deliver `args` as a JSON string
-// (and can CORRUPT inline strings longer than ~500 chars), so prefer the compact
-// file-based contract for large payloads — see the skill's "compact args" note.
+// args (uniform file contract): { files_file: <abs path to JSON array of test-file
+// paths>, file_count: N, library_path: string }
+// The path list ALWAYS lives in a file — never inline — so the caller never judges
+// payload size or splits invocations. Each agent self-discovers the NEW/CHANGED/
+// ORPHANED work by scanning its own file (the stub markers and `spec:` comments live
+// there), and infers conventions from sibling real tests — so no per-fn lists or
+// conventions blob need to travel through args at all.
 function parseArgs(a) {
   if (a == null) return {}
   if (typeof a !== 'string') return a
@@ -23,29 +22,23 @@ function parseArgs(a) {
     return JSON.parse(a)
   } catch (e) {
     throw new Error(
-      `spec-loop/spec-test-author: args could not be parsed as JSON (got a ${a.length}-char string). ` +
-      `Inline args over ~500 chars can be corrupted in transit — pass test files as a compact ` +
-      `{ files: ["tests/foo.rs", ...], library_path } payload instead of inlining stub_files/conventions. ` +
+      `spec-loop/spec-test-author: control args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Args should be tiny ({ files_file, file_count, library_path }); the test-file list belongs in the file. ` +
       `Underlying error: ${e.message}`
     )
   }
 }
 
 const A = parseArgs(args)
-const { library_path, conventions } = A
-// Compact contract: `files` is just an array of test-file paths; each agent
-// self-discovers the NEW/CHANGED/ORPHANED work by scanning its file (the stub
-// markers and `spec:` comments live there). Legacy `stub_files` still supported.
-const stub_files = (A.stub_files && A.stub_files.length)
-  ? A.stub_files
-  : (A.files || []).map(f => (typeof f === 'string' ? { file: f } : f))
+const { files_file, file_count, library_path } = A
 
-if (!stub_files || stub_files.length === 0) {
-  log('No files to reconcile — suite already matches the spec.')
+if (!files_file || !file_count) {
+  log('No files_file/file_count passed — suite already matches the spec.')
   return { results: [], total_authored: 0, total_reauthored: 0, total_orphaned: 0 }
 }
 
-log(`Reconciling tests to spec across ${stub_files.length} file(s) in parallel`)
+const fileIdx = Array.from({ length: file_count }, (_, i) => i)
+log(`Reconciling tests to spec across ${file_count} file(s) in parallel (paths from ${files_file})`)
 
 const RESULT_SCHEMA = {
   type: 'object',
@@ -93,27 +86,24 @@ const RESULT_SCHEMA = {
   required: ['file', 'authored', 'reauthored', 'orphaned_quarantined'],
 }
 
-const conventionsNote = conventions
-  ? `Suite conventions (mirror these): ${conventions}`
-  : 'Infer fixtures and assertion style from existing real (non-ignored) tests in the same file/dir before authoring.'
-
 const results = await pipeline(
-  stub_files,
-  f => agent(
+  fileIdx,
+  i => agent(
     `You are the spec-test-author step, reconciling ONE test file to the current spec. You make the tests faithfully encode the current claims — you do NOT write production code.
 
-File: ${f.file}
-Related zettels (read claims here): ${library_path}  — zettel ids: ${(f.zettel_ids || []).join(', ')}
-${conventionsNote}
+Your test file path is element [${i}] of the JSON array of path strings in the file:
+  ${files_file}
+Read that file, parse it, and take entry [${i}] — that is the test file you reconcile. Call it FILE below.
 
-Work items in this file:
-- NEW (author real test from claim, remove #[ignore]): ${JSON.stringify(f.new || [])}
-- CHANGED (rewrite body to the CURRENT claim, drop FIXME): ${JSON.stringify(f.changed || [])}
-- ORPHANED (quarantine, do not delete): ${JSON.stringify(f.orphaned || [])}
-(If a list is empty, also scan the file for any other ignored stub / FIXME-marked / drifted test and handle it the same way.)
+Related zettels (read claims here): ${library_path}  — the zettel id(s) for each test are in its "spec: <id> claim <N>" comment.
+
+Discover the work yourself by scanning FILE:
+- NEW: any ignored stub (#[ignore]="stub: not yet implemented" + todo!()/test.todo/raise NotImplementedError) → author a real test from the claim, remove #[ignore].
+- CHANGED: any real test carrying "FIXME: claim changed", OR any real test whose body no longer matches its referenced claim (drift) → rewrite the body to the CURRENT claim, update the "spec: <id> claim <N> — <text>" comment, remove the FIXME.
+- ORPHANED: any real test whose "spec: <id> claim <N>" no longer maps to an existing zettel/claim → quarantine, do NOT delete.
 
 PROCEDURE:
-1. Read ${f.file} fully and read 2-3 existing REAL (non-ignored) tests to learn fixtures, client, seed helpers, imports, assertion style.
+1. Read FILE fully and read 2-3 existing REAL (non-ignored) tests in it (or the same dir) to learn fixtures, client, seed helpers, imports, assertion style — mirror them.
 2. For each work item, read the referenced zettel and extract the EXACT current claim by TEXT (claim numbers shift — match on meaning, not number).
 3. Apply:
    - NEW: write a real arrange/act/assert body encoding the claim; remove the #[ignore]/"stub" marker.
@@ -129,10 +119,10 @@ HARD RULES:
 - Use time-relative seeding (e.g. SQL date_trunc('week', CURRENT_DATE)) instead of hardcoded "current" dates.
 - If a test cannot be authored faithfully at the test boundary without breaking compilation, the function MUST remain in the file as an #[ignore] stub (restore it verbatim if you removed or edited it — do NOT delete it), and you record it in could_not_author with BOTH a concrete reason AND a suggested_resolution (what would make it authorable: a harness capability like mock-hq / multi-identity SSH / clock injection, a spec change, or rescoping the claim). Never leave the suite uncompilable, and never drop an unauthorable claim — a could_not_author entry without a surviving #[ignore] function in the file is a failure.
 
-Self-check before returning: the file still contains a function for every stub you were given (authored, re-authored, or still #[ignore]); none were deleted. Your edits to the file are the deliverable; the returned text is just the structured summary.
+Self-check before returning: count the test functions in FILE at the start and at the end — the count must NOT decrease (every function still present, whether authored, re-authored, or left as #[ignore]); none were deleted. Your edits to the file are the deliverable; the returned text is just the structured summary.
 
-In the structured summary, populate authored_tests with EVERY test you turned into a real test (NEW + CHANGED, but NOT orphaned and NOT ones left as #[ignore] stubs), each with its fn name and the exact "spec: <id> claim <N> — <text>" it encodes. This list is fed to an independent reviewer who checks that each test would actually prove its claim.`,
-    { label: `reconcile:${f.file.split('/').pop()}`, phase: 'Reconcile tests', schema: RESULT_SCHEMA }
+In the structured summary, set \`file\` to FILE's path, and populate authored_tests with EVERY test you turned into a real test (NEW + CHANGED, but NOT orphaned and NOT ones left as #[ignore] stubs), each with its fn name and the exact "spec: <id> claim <N> — <text>" it encodes. This list is fed to an independent reviewer who checks that each test would actually prove its claim.`,
+    { label: `reconcile:#${i}`, phase: 'Reconcile tests', schema: RESULT_SCHEMA }
   )
 )
 
@@ -178,13 +168,13 @@ const SUBSTANTIVE = new Set(['too_weak', 'over_asserts', 'wrong_boundary', 'no_e
 // Files with at least one real authored/re-authored test to verify.
 const toVerify = valid.filter(r => (r.authored_tests || []).length > 0)
 
-function verifyPrompt(n, file, tests, zettel_ids) {
+function verifyPrompt(n, file, tests) {
   return `You are semantic-coverage reviewer ${n + 1} of 2. The tests below were just authored to encode spec claims. They are currently RED (the feature is not implemented yet), so do NOT run them — judge STATICALLY by reading the test body and the claim:
 
   "If this test were to PASS, would that prove the claim — at the strength the claim implies?"
 
 File: ${file}
-Zettel claims live under: ${library_path}  — zettel ids: ${(zettel_ids || []).join(', ')}
+Zettel claims live under: ${library_path}  — each test's "spec: <id> claim <N>" names its zettel.
 Tests to judge (fn → the claim it should encode):
 ${tests.map(t => `  - ${t.fn} :: ${t.zettel_claim}`).join('\n')}
 
@@ -198,9 +188,9 @@ For EACH listed fn: read its body in ${file}, read the referenced claim, and ass
 Be CONSERVATIVE: default faithful=true / issue=none unless the test is CLEARLY weak. When you flag an issue, give a concrete suggested_strengthening. Judge only the listed fns.`
 }
 
-async function verifyFile(file, tests, zettel_ids, phase) {
+async function verifyFile(file, tests, phase) {
   const reviews = await parallel([0, 1].map(n => () => agent(
-    verifyPrompt(n, file, tests, zettel_ids),
+    verifyPrompt(n, file, tests),
     { label: `verify-${n}:${base(file)}`, phase, schema: VERIFY_SCHEMA }
   )))
   return reviews.filter(Boolean)
@@ -234,7 +224,7 @@ if (toVerify.length > 0) {
     toVerify,
     async r => {
       const tests = r.authored_tests
-      const reviews1 = await verifyFile(r.file, tests, r.zettel_ids, 'Verify coverage')
+      const reviews1 = await verifyFile(r.file, tests, 'Verify coverage')
       const agg1 = aggregate(reviews1, tests)
 
       // 1/2 trigger: any reviewer flag → attempt a strengthen retry for those fns.
@@ -246,7 +236,7 @@ if (toVerify.length > 0) {
       await agent(
         `Reviewers flagged these tests in ${r.file} as WEAK coverage of their claim. Re-author ONLY these tests so each faithfully proves its claim at full strength. Tests only — never production code, never edit zettels, never weaken an assertion to pass, stay at the same black-box boundary as sibling tests, keep the test RED-for-the-right-reason (feature absent). Do not touch any other test, and do not delete any function.
 
-Zettel claims: ${library_path}  — zettel ids: ${(r.zettel_ids || []).join(', ')}
+Zettel claims live under: ${library_path}  — each flagged test's "spec: <id> claim <N>" names its zettel.
 Flagged tests:
 ${toStrengthen.map(a => `  - ${a.fn} :: ${a.zettel_claim}\n      issue(s): ${a.issues.join(', ')}\n      fix: ${a.strengthenings.join(' | ') || '(strengthen to assert the full claim)'}`).join('\n')}`,
         { label: `strengthen:${base(r.file)}`, phase: 'Strengthen', schema: RESULT_SCHEMA }
@@ -255,7 +245,7 @@ ${toStrengthen.map(a => `  - ${a.fn} :: ${a.zettel_claim}\n      issue(s): ${a.i
 
       // Re-verify only the strengthened fns.
       const reTests = toStrengthen.map(a => ({ fn: a.fn, zettel_claim: a.zettel_claim }))
-      const reviews2 = await verifyFile(r.file, reTests, r.zettel_ids, 'Strengthen')
+      const reviews2 = await verifyFile(r.file, reTests, 'Strengthen')
       const agg2 = aggregate(reviews2, reTests)
 
       // 2/2 confirm post-retry = hard gate.

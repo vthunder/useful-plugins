@@ -9,11 +9,12 @@ export const meta = {
   ],
 }
 
-// args: { zettels: string[], library_path: string, test_dir?: string }
-// Parse args defensively. The runtime may deliver `args` as a JSON string (and can
-// corrupt inline strings longer than ~500 chars). Zettel paths are compact, so they
-// stay inline; if you ever change enough zettels to approach the limit, pass fewer
-// per call. See the skill's "compact args" note.
+// args (uniform file contract): { zettels_file: <abs path to JSON array of zettel
+// paths>, zettel_count: N, library_path: string, test_dir?: string }
+// The array ALWAYS lives in a file — the workflow never receives it inline — so the
+// caller never has to judge payload size or split invocations. The runtime can deliver
+// `args` as a JSON string and corrupt long inline strings; keeping only the path +
+// count + short scalars inline sidesteps that entirely.
 function parseArgs(a) {
   if (a == null) return {}
   if (typeof a !== 'string') return a
@@ -21,21 +22,22 @@ function parseArgs(a) {
     return JSON.parse(a)
   } catch (e) {
     throw new Error(
-      `spec-loop/spec-lock-test-gen: args could not be parsed as JSON (got a ${a.length}-char string). ` +
-      `Inline args over ~500 chars can be corrupted in transit — pass fewer zettels per invocation. ` +
+      `spec-loop/spec-lock-test-gen: control args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Args should be tiny ({ zettels_file, zettel_count, library_path, test_dir }); the zettel list belongs in the file. ` +
       `Underlying error: ${e.message}`
     )
   }
 }
 
-const { zettels, library_path, test_dir } = parseArgs(args)
+const { zettels_file, zettel_count, library_path, test_dir } = parseArgs(args)
 
-if (!zettels || zettels.length === 0) {
-  log('No changed zettels passed — nothing to do.')
+if (!zettels_file || !zettel_count) {
+  log('No zettels_file/zettel_count passed — nothing to do.')
   return { results: [], uncovered: [], completeness: [], incomplete: [] }
 }
 
-log(`Running spec-test-gen on ${zettels.length} zettel(s) in parallel`)
+const zettelIdx = Array.from({ length: zettel_count }, (_, i) => i)
+log(`Running spec-test-gen on ${zettel_count} zettel(s) in parallel (paths from ${zettels_file})`)
 
 const TEST_GEN_SCHEMA = {
   type: 'object',
@@ -180,9 +182,14 @@ ${RUBRIC}`,
 
 // ── Phase 1+2: generate stubs, then retry zettels that failed to stamp frontmatter ──
 const results = await pipeline(
-  zettels,
-  (zettel_path, _orig, i) => agent(
-    `Run the spec-test-gen skill on this zettel file: ${zettel_path}
+  zettelIdx,
+  i => agent(
+    `Run the spec-test-gen skill on one changed zettel.
+
+Your zettel file path is element [${i}] of the JSON array of path strings in the file:
+  ${zettels_file}
+Read that file, parse it, and take entry [${i}] — that path is the zettel to process.
+
 Library path: ${library_path}
 ${test_dir ? `Test directory override: ${test_dir}` : 'Use auto-detected test directory.'}
 
@@ -192,8 +199,8 @@ Follow the full spec-test-gen procedure:
 3. Search the test directory for existing coverage using grep on zettel ID and claim keywords.
 4. Write new test stubs for uncovered claims; update stubs for changed claims; never delete existing tests.
 5. Stamp the zettel's frontmatter with a tests: field listing all test files.
-6. Return structured output.`,
-    { label: `test-gen:${base(zettel_path)}`, phase: 'Test gen', schema: TEST_GEN_SCHEMA }
+6. Return structured output, with zettel_path set to the exact path you processed.`,
+    { label: `test-gen:#${i}`, phase: 'Test gen', schema: TEST_GEN_SCHEMA }
   )
 )
 

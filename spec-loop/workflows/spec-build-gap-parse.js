@@ -8,20 +8,11 @@ export const meta = {
   ],
 }
 
-// args: {
-//   failing_tests: Array<{
-//     name: string,
-//     file: string,
-//     line: number,
-//     failure_output: string,   // first ~20 lines of failure output
-//   }>,
-//   library_path: string,
-//   test_dir: string,
-// }
-// Parse args defensively. The runtime may deliver `args` as a JSON string (and can
-// corrupt inline strings over ~500 chars). Failure outputs are bulky, so prefer the
-// compact file contract: write the failing-test records to a JSON file and pass
-// { failures_file: "<abs path>", failing_count: N } — see the skill's "compact args" note.
+// args (uniform file contract): { failures_file: <abs path to JSON array of
+// { name, file, line, failure_output }>, failing_count: N, library_path, test_dir }
+// The failing-test records ALWAYS live in a file (failure outputs are bulky) — never
+// inline — so the caller never judges payload size or splits invocations. Only the
+// path + count + short scalars travel through args.
 function parseArgs(a) {
   if (a == null) return {}
   if (typeof a !== 'string') return a
@@ -29,27 +20,24 @@ function parseArgs(a) {
     return JSON.parse(a)
   } catch (e) {
     throw new Error(
-      `spec-loop/spec-build-gap-parse: args could not be parsed as JSON (got a ${a.length}-char string). ` +
-      `Failure-output blobs are bulky and inline args over ~500 chars can be corrupted in transit — ` +
-      `write failing tests to a file and pass { failures_file, failing_count } instead. ` +
+      `spec-loop/spec-build-gap-parse: control args could not be parsed as JSON (got a ${a.length}-char string). ` +
+      `Args should be tiny ({ failures_file, failing_count, library_path, test_dir }); the failing-test records belong in the file. ` +
       `Underlying error: ${e.message}`
     )
   }
 }
 
 const A = parseArgs(args)
-const { library_path, test_dir } = A
-const failuresFile = A.failures_file
-// File mode: index markers; each agent reads its own record from the file.
-const failing = (A.failing_tests && A.failing_tests.length)
-  ? A.failing_tests.map((t, i) => ({ ...t, _i: i }))
-  : (failuresFile ? Array.from({ length: A.failing_count || 0 }, (_, i) => ({ _i: i, _file: failuresFile })) : [])
+const { failures_file, failing_count, library_path, test_dir } = A
 
-if (failing.length === 0) {
-  return { gaps: [], gap_report: 'No failing tests to classify.' }
+if (!failures_file || !failing_count) {
+  return { gaps: [], gap_report: 'No failures_file/failing_count passed — nothing to classify.' }
 }
 
-log(`Classifying ${failing.length} failing test(s) in parallel${failuresFile ? ` (from ${failuresFile})` : ''}`)
+// Each agent reads its own record [i] from the file.
+const failing = Array.from({ length: failing_count }, (_, i) => ({ _i: i }))
+
+log(`Classifying ${failing_count} failing test(s) in parallel (records from ${failures_file})`)
 
 const GAP_SCHEMA = {
   type: 'object',
@@ -79,21 +67,14 @@ const INTERPRETATION_SCHEMA = {
 }
 
 // Step 1: classify all failing tests in parallel
-const recordBlock = t => t._file
-  ? `Your failing-test record is element [${t._i}] of the JSON array in the file:
-  ${t._file}
-Read that file, parse it, and use entry [${t._i}] — it has fields: name, file, line, failure_output. Use them as Test name / File / line / Failure output below.`
-  : `Test name: ${t.name}
-File: ${t.file}:${t.line}
-Failure output:
-${t.failure_output}`
-
 const classifications = await pipeline(
   failing,
   (t, _orig, i) => agent(
     `Classify this failing test for spec-build gap analysis.
 
-${recordBlock(t)}
+Your failing-test record is element [${t._i}] of the JSON array in the file:
+  ${failures_file}
+Read that file, parse it, and use entry [${t._i}] — it has fields: name, file, line, failure_output.
 
 Library path: ${library_path}
 Test dir: ${test_dir}
@@ -110,7 +91,7 @@ CLASSIFICATION TASK:
 4. For ambiguous: describe exactly what is unclear (what two interpretations are possible).
 
 Return structured output (test_name and file come from the record).`,
-    { label: t._file ? `classify:#${t._i}` : `classify:${t.name}`, phase: 'Classify gaps', schema: GAP_SCHEMA }
+    { label: `classify:#${t._i}`, phase: 'Classify gaps', schema: GAP_SCHEMA }
   )
 )
 
