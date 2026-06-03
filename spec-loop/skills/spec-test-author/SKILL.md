@@ -76,7 +76,12 @@ Each agent, for its file:
 - **CHANGED** → rewrites the body to encode the *current* claim; updates the `spec:` comment to the current claim number+text; removes the `FIXME`. (The test should now go red until spec-build implements the new behavior.)
 - **ORPHANED** → does **not** delete. Marks it `#[ignore = "orphaned: claim removed — review for deletion"]`, leaving the body intact, and reports it for human review.
 
-It returns per-file counts and the orphan list.
+After reconciling, the workflow runs an **always-on semantic coverage check**: for every authored/re-authored (now real) test, two independent reviewers judge *statically* — the tests are red, so the question is "if this test were to pass, would that prove its claim at the claim's strength?". A reviewer flags `too_weak` / `over_asserts` / `wrong_boundary` / `no_exercise`. **Two-tier vote:** any one reviewer's flag triggers a cheap **strengthen** retry (re-author just that test stronger, tests-only); a weakness **confirmed by both reviewers after** the retry becomes a hard gate.
+
+It returns per-file counts, the orphan list, `could_not_author`, and:
+- `total_verified` — authored tests reviewed
+- `total_strengthened` — tests re-authored because a reviewer flagged weak coverage
+- `weak_coverage` — `[{ file, fn, zettel_claim, issue, detail }]` tests that **still** don't prove their claim after strengthening (2/2). **This is the new hard gate (Step 4e).**
 
 ## Step 4 — Compile, run, and review
 
@@ -92,6 +97,8 @@ It returns per-file counts and the orphan list.
 **4c. Surface orphans.** List every quarantined orphan with its old claim reference so the user can confirm deletion (or restore the claim to the spec). Do not delete them yourself.
 
 **4d. Could-not-author is a decision gate (do not auto-proceed).** If *any* claim could not be authored, this skill **stops at its report** and does not hand off to spec-build. These are claims with no executable test, so spec-build cannot drive or verify them — running it anyway would silently ship unverified behavior, the exact failure mode this loop exists to prevent. The user decides per item whether to (a) resolve it (add the missing harness capability / fix the spec) and re-run spec-test-author, or (b) explicitly accept it as known-unverified and proceed. The skill must not make that call itself.
+
+**4e. Weak coverage is a decision gate (do not auto-proceed).** If `weak_coverage` is non-empty, those authored tests *compile and are red*, but two reviewers independently confirmed (even after a strengthen retry) that passing them would **not** prove their claim — a green there would be a false guarantee, which is as dangerous as no test. Treat it exactly like could-not-author: **stop at the report**, do not hand off to spec-build. Per item the user (a) accepts the suggested strengthening / adds the harness capability needed to assert the claim faithfully and re-runs spec-test-author, (b) rescopes the claim in the zettel so the weaker assertion is in fact faithful, or (c) explicitly accepts it as known-weak coverage and proceeds. The skill never silently ships a test that doesn't prove its claim.
 
 ## Step 5 — Commit the red checkpoint
 
@@ -120,7 +127,9 @@ Authored (new):     N   (real failing tests)
 Re-authored (changed): N   (now failing; old assertions replaced)
 Passed immediately: N   (claim already satisfied)
 Orphaned (quarantined): N
-Could not author:   N   ← if > 0, this is a decision gate (see below)
+Verified (semantic): N   (authored tests reviewed)   Strengthened: N
+Could not author:   N   ← if > 0, decision gate (see below)
+Weak coverage:      N   ← if > 0, decision gate (see below)
 Committed:          <sha> (or "skipped, --no-commit")
 
 Orphaned tests — confirm deletion or restore the claim:
@@ -131,16 +140,21 @@ Orphaned tests — confirm deletion or restore the claim:
      why: <concrete reason it can't be tested at the boundary>
      to resolve: <suggested fix — harness capability / spec change / rescope>
      your call: resolve & re-run spec-test-author, or accept as known-unverified
+
+⚠ WEAK COVERAGE — N authored test(s) would not prove their claim even if green (2/2 reviewers, post-strengthen):
+  [<zettel-id> claim N] <fn>  (issue: too_weak | over_asserts | wrong_boundary | no_exercise)
+     detail: <why passing would not establish the claim>
+     your call: strengthen (resolve & re-run), rescope the claim, or accept as known-weak
 ```
 
-**If "Could not author" is 0**, end with: `Next: run spec-build to implement the red tests to green.`
+**If both "Could not author" and "Weak coverage" are 0**, end with: `Next: run spec-build to implement the red tests to green.`
 
-**If "Could not author" is > 0**, do NOT tell the user to run spec-build. End with an explicit gate, e.g.:
+**If either is > 0**, do NOT tell the user to run spec-build. End with an explicit gate, e.g.:
 
 ```
-These N claim(s) will have NO test coverage. spec-build cannot verify them.
-Choose per item: (a) resolve the blocker and re-run spec-test-author, or
-(b) explicitly accept them as unverified — then run spec-build for the rest.
+N claim(s) have NO test and N test(s) would not prove their claim. spec-build cannot
+safely verify these. Choose per item: (a) resolve the blocker and re-run spec-test-author,
+or (b) explicitly accept it as unverified/known-weak — then run spec-build for the rest.
 ```
 
 Wait for the user's decision; do not proceed to spec-build on your own.
