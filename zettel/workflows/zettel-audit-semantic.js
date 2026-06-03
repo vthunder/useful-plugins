@@ -8,15 +8,19 @@ export const meta = {
   ],
 }
 
-// args: {
-//   corpus: Array<{ id, title, tags, links, external_links, body, path }>,
+// args (uniform file contract — never inline the corpus):
+//   corpus_file: string,    // abs path to a COMPACT digest: JSON array of
+//                           //   { id, path, links, claims[], interfaces[], data_model[], terms[] }
+//                           //   per zettel (prose exposition dropped to stay small).
+//   library_path: string,   // dir of full zettel sources, for read-on-demand confirmation
 //   library_name: string,
 //   library_kind: string,   // 'release-spec' | 'evergreen'
+//   zettel_count?: number,
 //   focus_slugs?: string[], // if --focus was given
-// }
-const { corpus, library_name, library_kind, focus_slugs } = args
+// Agents read the digest for whole-library BREADTH, then read the full source of the
+// specific zettels a candidate finding involves to confirm exact wording (DEPTH).
+const { corpus_file, library_path, library_name, library_kind, zettel_count, focus_slugs } = args
 
-const corpusJson = JSON.stringify(corpus)
 const focusNote = focus_slugs && focus_slugs.length > 0
   ? `Focus slugs (bias stale-claim checks toward these): ${focus_slugs.join(', ')}`
   : 'Full library audit — no focus restriction.'
@@ -109,7 +113,7 @@ Cite the exact text and zettel ID for each.`,
   },
 ]
 
-log(`Running ${DIMENSIONS.length} semantic check dimensions in parallel`)
+log(`Running ${DIMENSIONS.length} semantic check dimensions in parallel${zettel_count ? ` over ${zettel_count} zettels` : ''}`)
 
 const dimensionResults = await pipeline(
   DIMENSIONS,
@@ -119,12 +123,15 @@ const dimensionResults = await pipeline(
 Library: ${library_name} (kind: ${library_kind})
 ${focusNote}
 
-CORPUS (${corpus.length} zettels):
-${corpusJson}
+CORPUS DIGEST — read it first; it covers the WHOLE library so you can catch cross-zettel issues:
+  ${corpus_file}
+Each entry is a compact view of one zettel — id, path, links, claims, and interface/data-model/terminology mentions (prose exposition is omitted to keep it small). Consistency issues are cross-cutting, so scan the entire digest, not a slice of it.
+
+CONFIRM BEFORE REPORTING: when you spot a CANDIDATE issue, read the FULL source of the specific zettels involved (their \`path\` is in the digest; sources live under ${library_path}) to verify the exact wording in context. Cite real quotes from the source — never paraphrase, and never quote the digest summary.
 
 TASK: ${dim.prompt}
 
-Be thorough. A missed extraction leads to a missed conflict. Cite exact quotes — never paraphrase.
+Be thorough. A missed extraction leads to a missed conflict.
 When uncertain whether two claims conflict, report as low-confidence rather than suppressing.`,
     { label: dim.label, phase: 'Semantic checks', schema: FINDINGS_SCHEMA }
   )
@@ -154,8 +161,7 @@ Description: ${f.description}
 ${f.quote_a ? `Quote A: "${f.quote_a}"` : ''}
 ${f.quote_b ? `Quote B: "${f.quote_b}"` : ''}
 
-CORPUS:
-${corpusJson}
+To check this, RE-READ the full source of the involved zettels (${f.slugs.join(', ')}) directly from the library at ${library_path} — confirm the quotes genuinely exist and genuinely conflict *in context* (many candidates are false positives where the two claims coexist fine once you read the surrounding text).
 
 Is this finding a genuine issue in the spec, or is it a false positive (the zettels are actually consistent)?
 Return is_real: true only if you are confident the conflict is real after re-reading the relevant zettels.`,

@@ -21,13 +21,14 @@ spec-lock  ──▶  spec-test-author  ──▶  spec-build
 
 ## Core principle: gates are hard stops
 
-This loop's value is that **green ⟺ spec satisfied**. Every gate exists because proceeding past it would silently ship something unverified. The driver therefore **never** resolves a gate on its own — it stops, presents the gate with its reason + suggested resolution, and waits. There are five gates across the loop; the driver honors all of them:
+This loop's value is that **green ⟺ spec satisfied**. Every gate exists because proceeding past it would silently ship something unverified. The driver therefore **never** resolves a gate on its own — it stops, presents the gate with its reason + suggested resolution, and waits. The driver honors every gate across the loop:
 
 | Stage | Gate | Surfaced as |
 |---|---|---|
 | spec-lock | Blocking audit question / audit not clean after 5 cycles | spec-lock stops before commit |
-| spec-lock | **Completeness** — testable claim with no stub after remediation (`incomplete`) | spec-lock Step 4 hard gate |
+| spec-lock | **Completeness** — **blocking** (new/changed-claim) item with no stub after remediation (`incomplete`) | spec-lock Step 4 hard gate (advisory pre-existing holes don't block) |
 | spec-test-author | **Could-not-author** — claim with no executable test (`could_not_author`) | spec-test-author Step 4d |
+| spec-test-author | **Test-defect** — authored test that fails at compile/setup (not at the claim assertion) and couldn't be auto-repaired | spec-test-author runtime-validation step |
 | spec-test-author | **Weak coverage** — authored test that wouldn't prove its claim (`weak_coverage`) | spec-test-author Step 4e |
 | spec-build | **SPEC GAP** / blocked gap — genuine ambiguity or impossible-at-this-layer | spec-build Step 6 / 6.5 |
 
@@ -60,7 +61,7 @@ Resolve once and reuse for every stage:
 Run the `spec-lock` skill with the resolved `--since` / `--library`.
 
 - If spec-lock reports **"No changed zettels"**: the spec is unchanged. Skip to Step 3 (spec-build may still have red tests to drive from a prior interrupted run). If spec-build also finds all green, report "loop already complete" and exit.
-- If spec-lock stops at its **blocking-audit** gate or its **completeness** gate (`incomplete` non-empty): **STOP**. Relay spec-lock's gate report verbatim and the resume instruction. Do not continue. (With `--auto-accept-unverified`, completeness items cannot be auto-accepted — a missing test is not something the driver can fabricate; this gate is always hard.)
+- If spec-lock stops at its **blocking-audit** gate or its **completeness** gate (a **blocking**, new/changed-claim item in `incomplete`): **STOP**. Relay spec-lock's gate report verbatim and the resume instruction. Do not continue. Advisory pre-existing coverage holes do not stop the loop — spec-lock reports them non-blocking and continues. (With `--auto-accept-unverified`, blocking completeness items still cannot be auto-accepted — a missing test is not something the driver can fabricate; this gate is always hard.)
 - Otherwise spec-lock has committed audit fixes + stubs (completeness clean). Continue.
 
 ## Step 2 — spec-test-author
@@ -68,8 +69,8 @@ Run the `spec-lock` skill with the resolved `--since` / `--library`.
 Run the `spec-test-author` skill with the resolved `--since` / `--library` / `--test-cmd`.
 
 Inspect its result:
-- **`could_not_author` non-empty** or **`weak_coverage` non-empty** → decision gate.
-  - Default (no `--auto-accept-unverified`): **STOP**. Relay spec-test-author's gate report (both lists, each with reason + suggested resolution) and wait. These are claims spec-build cannot safely drive.
+- **`could_not_author` non-empty**, **`test_defect` non-empty** (authored tests that fail at compile/setup rather than at the claim assertion, and couldn't be auto-repaired), or **`weak_coverage` non-empty** → decision gate.
+  - Default (no `--auto-accept-unverified`): **STOP**. Relay spec-test-author's gate report (each list, each item with reason + suggested resolution) and wait. These are claims spec-build cannot safely drive.
   - With `--auto-accept-unverified`: record each item under "accepted known-unverified/known-weak" and continue — but never to be reported as covered.
 - Otherwise the suite is red and faithfully encodes the spec. Continue.
 
@@ -79,6 +80,7 @@ Run the `spec-build` skill with the resolved `--test-cmd` and `--parallel` if se
 
 Inspect its completion-gate result:
 - **All green** → the cycle closed cleanly. Go to Step 4.
+- **Test-defect** → spec-build classified a failure as a defective authored test (it fails at compile/setup, not at the claim assertion) rather than a production gap. Do **not** stop and do **not** implement against it. Re-run `spec-test-author` scoped to the defective test's file to re-author it, then re-run `spec-build`. (This routing counts toward the cycle bound in Step 4.)
 - **SPEC GAP(s)** → genuine spec ambiguity. The fix is a *spec change*, which only a human (and spec-lock) can make. **STOP**: relay each SPEC GAP with its options and the standard recommended action (update the zettel, then re-run `spec-loop` — the driver will re-enter from spec-lock). `--auto-accept-unverified` does **not** apply to SPEC GAPs (you cannot "accept" an ambiguous spec).
 - **Blocked gap(s)** (needs-capability / environment) → relay each with category + reason + suggested resolution.
   - Default: **STOP** and let the user decide.
@@ -100,11 +102,11 @@ Library: <path>     Test cmd: <cmd>     Cycles: N / <max>
 spec-lock
   Changed zettels: N     Audit fixes: N
   Stubs written/updated: N / N
-  Completeness: clean (recovered N missing) | ⛔ GATE: N still missing
+  Completeness: clean (recovered N missing) | ⛔ GATE: N blocking still missing   (advisory pre-existing holes: N)
 spec-test-author
   Authored: N   Re-authored: N   Passed-immediately: N
   Semantic verify: N reviewed, N strengthened
-  ⚠ Could-not-author: N     ⚠ Weak-coverage: N
+  ⚠ Could-not-author: N   ⚠ Test-defect: N   ⚠ Weak-coverage: N
 spec-build
   Gaps: N   Closed: N   SPEC GAPs: N   Blocked: N
   Commits: <sha> … (gap → commit)

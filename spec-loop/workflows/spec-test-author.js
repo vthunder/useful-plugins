@@ -3,13 +3,14 @@ export const meta = {
   description: 'Reconcile tests to spec (author new, re-author changed, quarantine orphaned), one agent per file, in parallel',
   phases: [
     { title: 'Reconcile tests', detail: 'Per file: author new stubs, re-author changed claims, quarantine orphans' },
+    { title: 'Validate', detail: 'Run each authored test; require it to fail at its claim assertion (not compile/setup); repair defects once' },
     { title: 'Verify coverage', detail: '2 reviewers per file judge whether each authored test would actually prove its claim (green ⟺ claim satisfied)' },
     { title: 'Strengthen', detail: 'Re-author tests a reviewer flagged as weak coverage, then re-verify' },
   ],
 }
 
 // args (uniform file contract): { files_file: <abs path to JSON array of test-file
-// paths>, file_count: N, library_path: string }
+// paths>, file_count: N, library_path: string, test_cmd: string }
 // The path list ALWAYS lives in a file — never inline — so the caller never judges
 // payload size or splits invocations. Each agent self-discovers the NEW/CHANGED/
 // ORPHANED work by scanning its own file (the stub markers and `spec:` comments live
@@ -30,7 +31,7 @@ function parseArgs(a) {
 }
 
 const A = parseArgs(args)
-const { files_file, file_count, library_path } = A
+const { files_file, file_count, library_path, test_cmd } = A
 
 if (!files_file || !file_count) {
   log('No files_file/file_count passed — suite already matches the spec.')
@@ -38,6 +39,7 @@ if (!files_file || !file_count) {
 }
 
 const fileIdx = Array.from({ length: file_count }, (_, i) => i)
+const base = p => p.split('/').pop()
 log(`Reconciling tests to spec across ${file_count} file(s) in parallel (paths from ${files_file})`)
 
 const RESULT_SCHEMA = {
@@ -129,9 +131,106 @@ In the structured summary, set \`file\` to FILE's path, and populate authored_te
 const valid = results.filter(Boolean)
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Runtime validation (always-on, BEFORE static review).
+// Static review can't see a test that panics in setup, fails to compile, or asserts
+// a false positive — and those defects reproduce verbatim on re-run. So actually RUN
+// each authored test and require it to fail at its CLAIM ASSERTION (faithful red),
+// not at compile/arrange/infra. Defects get ONE repair (the runtime error fed back);
+// survivors are a hard gate ("test-defect") routed back as test fixes, never as
+// production work.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RUN_SCHEMA = {
+  type: 'object',
+  properties: {
+    file: { type: 'string' },
+    outcomes: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          fn: { type: 'string' },
+          outcome: { type: 'string', enum: ['passes', 'fails_assertion', 'compile_error', 'setup_panic', 'other_error'] },
+          detail: { type: 'string', description: 'first ~15 lines of the failure when outcome is not passes/fails_assertion' },
+        },
+        required: ['fn', 'outcome'],
+      },
+    },
+  },
+  required: ['file', 'outcomes'],
+}
+
+// A faithful red test is `fails_assertion` (or `passes` if the feature already exists).
+// Everything else means the TEST is defective, not the production code.
+const DEFECT_OUTCOME = new Set(['compile_error', 'setup_panic', 'other_error'])
+
+function runPrompt(file, fns) {
+  return `Run the authored tests in FILE and report HOW each one fails, so a faithful red test can be told apart from a defective one. Do NOT edit any files — only run and report.
+
+FILE: ${file}
+Test command: ${test_cmd || '(auto-detect: cargo test / npm test / pytest)'}
+Authored fns to run:
+${fns.map(f => `  - ${f}`).join('\n')}
+
+Run the test command filtered to these fns (e.g. \`${test_cmd || 'cargo test'} <fn>\`, or run the file's tests and read each fn's result). For EACH fn assign exactly one outcome:
+- passes          — passed (the behavior already exists).
+- fails_assertion — compiled, ran, and failed at an ASSERTION about the claim (faithful "red because unimplemented"). THIS IS THE EXPECTED STATE for a not-yet-built feature.
+- compile_error   — the test/file does not compile (missing/renamed symbol, type error, non-existent field or API).
+- setup_panic     — panicked/errored in arrange/setup BEFORE reaching the claim assertion (e.g. a unique-constraint violation while seeding, a helper that errored, a wrong/duplicate fixture). A DEFECTIVE test, not a real feature gap.
+- other_error     — failed for another infra reason (timeout, port/env, mis-driven PTY that never reached the assertion).
+
+For any outcome other than passes/fails_assertion, include the first ~15 lines of the failure in detail (the panic/compile message and the line).`
+}
+
+async function runFile(file, fns, phase) {
+  return await agent(runPrompt(file, fns), { label: `run:${base(file)}`, phase, schema: RUN_SCHEMA })
+}
+
+let testDefectGate = []   // still-defective authored tests after one repair — hard gate
+let repairedCount = 0
+
+const toValidate = valid.filter(r => (r.authored_tests || []).length > 0)
+if (toValidate.length > 0) {
+  log(`Runtime validation: running authored tests across ${toValidate.length} file(s) to confirm faithful-red (not compile/setup defects)`)
+  const perFileRun = await pipeline(
+    toValidate,
+    async r => {
+      const claimByFn = Object.fromEntries((r.authored_tests || []).map(t => [t.fn, t.zettel_claim]))
+      const fns = r.authored_tests.map(t => t.fn)
+      const run1 = await runFile(r.file, fns, 'Validate')
+      const defects1 = (run1?.outcomes || []).filter(o => DEFECT_OUTCOME.has(o.outcome))
+      if (defects1.length === 0) return { file: r.file, defective: [], repaired: 0 }
+
+      // One repair attempt, feeding the actual runtime failure back to a re-author.
+      await agent(
+        `These authored tests in ${r.file} are DEFECTIVE — they fail BEFORE proving their claim (compile error / setup panic / infra), not at the claim assertion. Repair ONLY these tests so each compiles and fails at its CLAIM ASSERTION (or passes if the behavior already exists). Tests ONLY — never production code, never edit zettels, stay at the sibling black-box boundary, never delete a function. Fix the actual cause shown (a colliding seed value → use distinct values; a non-existent payload field / renamed API → use the real one; a false-positive assertion → assert on the real signal; a mis-driven PTY → drive the correct keys/screens), NOT by weakening the assertion.
+
+Zettel claims live under: ${library_path}.
+Defective tests (fn :: claim — runtime failure):
+${defects1.map(d => `  - ${d.fn} :: ${claimByFn[d.fn] || ''}\n      ${d.outcome}: ${(d.detail || '').split('\n').slice(0, 8).join(' / ')}`).join('\n')}`,
+        { label: `repair:${base(r.file)}`, phase: 'Validate', schema: RESULT_SCHEMA }
+      )
+      repairedCount += defects1.length
+
+      const run2 = await runFile(r.file, defects1.map(d => d.fn), 'Validate')
+      const stillDefective = (run2?.outcomes || [])
+        .filter(o => DEFECT_OUTCOME.has(o.outcome))
+        .map(o => ({ file: r.file, fn: o.fn, zettel_claim: claimByFn[o.fn] || '', outcome: o.outcome, detail: (o.detail || '').split('\n').slice(0, 6).join(' / ') }))
+      return { file: r.file, defective: stillDefective, repaired: defects1.length }
+    }
+  )
+  testDefectGate = perFileRun.filter(Boolean).flatMap(p => p.defective)
+}
+
+if (testDefectGate.length > 0) {
+  log(`⛔ ${testDefectGate.length} authored test(s) still defective after repair — hard gate (test fixes needed, not production)`)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Semantic coverage verification (always-on).
 // A test that passes but doesn't actually prove its claim is a false guarantee.
-// Authored tests are RED now (feature unimplemented), so judge STATICALLY:
+// Runtime validity (compiles, fails at its assertion) was already confirmed by the
+// Validate phase above — so this stage is purely about STRENGTH, judged statically:
 // "if this test were to pass, would that prove the claim at the claim's strength?"
 //
 // Two-tier vote (hard-stop posture): ANY ONE reviewer flagging a test as weak
@@ -162,7 +261,6 @@ const VERIFY_SCHEMA = {
   required: ['file', 'verdicts'],
 }
 
-const base = p => p.split('/').pop()
 const SUBSTANTIVE = new Set(['too_weak', 'over_asserts', 'wrong_boundary', 'no_exercise'])
 
 // Files with at least one real authored/re-authored test to verify.
@@ -275,6 +373,9 @@ return {
   total_could_not_author: valid.reduce((s, r) => s + ((r.could_not_author || []).length), 0),
   orphans: valid.flatMap(r => (r.orphans || []).map(x => ({ file: r.file, ...x }))),
   could_not_author: valid.flatMap(r => (r.could_not_author || []).map(x => ({ file: r.file, ...x }))),
+  // Runtime validation:
+  total_repaired: repairedCount,
+  test_defect: testDefectGate, // hard gate: authored tests that fail at compile/setup, not the claim — need a test re-author, not production
   // Semantic coverage verification:
   total_verified: toVerify.reduce((s, r) => s + (r.authored_tests || []).length, 0),
   total_strengthened: strengthenedCount,

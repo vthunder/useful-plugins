@@ -59,9 +59,12 @@ Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json
 {
   "files_file": "<abs path to author-files.json>",
   "file_count": <N>,
-  "library_path": "<resolved library path>"
+  "library_path": "<resolved library path>",
+  "test_cmd": "<resolved test command, e.g. cargo test>"
 }
 ```
+
+> Pass the **structured object** above as Workflow `args` (a JSON value), not a CLI-style string — the workflow parses `{ files_file, file_count, library_path, test_cmd }` and rejects a bare argument string. `test_cmd` is what the Validate phase runs to check each authored test fails at its assertion (not at compile/setup).
 
 One agent per file; each agent re-discovers the NEW/CHANGED/ORPHANED work by scanning its own file (the stub markers and `spec:` comments live there) and infers fixtures/seed-helpers from sibling real tests — so no per-fn lists or `conventions` blob need to travel through args.
 
@@ -72,16 +75,22 @@ Each agent, for its file:
 - **CHANGED** → rewrites the body to encode the *current* claim; updates the `spec:` comment to the current claim number+text; removes the `FIXME`. (The test should now go red until spec-build implements the new behavior.)
 - **ORPHANED** → does **not** delete. Marks it `#[ignore = "orphaned: claim removed — review for deletion"]`, leaving the body intact, and reports it for human review.
 
-After reconciling, the workflow runs an **always-on semantic coverage check**: for every authored/re-authored (now real) test, two independent reviewers judge *statically* — the tests are red, so the question is "if this test were to pass, would that prove its claim at the claim's strength?". A reviewer flags `too_weak` / `over_asserts` / `wrong_boundary` / `no_exercise`. **Two-tier vote:** any one reviewer's flag triggers a cheap **strengthen** retry (re-author just that test stronger, tests-only); a weakness **confirmed by both reviewers after** the retry becomes a hard gate.
+After reconciling, the workflow runs two always-on checks in order:
+
+**Validate (runtime).** Each authored test is actually **run** (via `test_cmd`) and its failure mode classified: `passes` (feature already exists), `fails_assertion` (faithful red — the expected state), or a **defect** (`compile_error` / `setup_panic` / `other_error`). A defect means the *test* is broken — it fails before reaching its claim assertion (a colliding seed, a non-existent field/API, a false-positive assertion, a mis-driven PTY) — and would reproduce verbatim on a naive re-run. Defects get **one** repair (the runtime error fed back to a tests-only re-author); survivors become the `test_defect` hard gate. Static review can't see these, which is why they're caught here by running.
+
+**Verify coverage (semantic).** For every authored test that now compiles and is red, two independent reviewers judge *statically*: "if this test were to pass, would that prove its claim at the claim's strength?". A reviewer flags `too_weak` / `over_asserts` / `wrong_boundary` / `no_exercise`. **Two-tier vote:** any one reviewer's flag triggers a cheap **strengthen** retry; a weakness **confirmed by both reviewers after** the retry becomes a hard gate.
 
 It returns per-file counts, the orphan list, `could_not_author`, and:
+- `total_repaired` — defective tests repaired during Validate
+- `test_defect` — `[{ file, fn, zettel_claim, outcome, detail }]` authored tests that **still** fail at compile/setup (not their assertion) after one repair. **Hard gate (Step 4d-2): these need a test re-author, not production code.**
 - `total_verified` — authored tests reviewed
 - `total_strengthened` — tests re-authored because a reviewer flagged weak coverage
-- `weak_coverage` — `[{ file, fn, zettel_claim, issue, detail }]` tests that **still** don't prove their claim after strengthening (2/2). **This is the new hard gate (Step 4e).**
+- `weak_coverage` — `[{ file, fn, zettel_claim, issue, detail }]` tests that **still** don't prove their claim after strengthening (2/2). **This is the hard gate (Step 4e).**
 
 ## Step 4 — Compile, run, and review
 
-**4a. Compile + run** the affected tests. Authored/re-authored tests should be **red for the right reason** — a failed assertion or an expected "feature absent" error, **not** a compile error:
+**4a. Compile + run** the affected tests (the workflow's Validate phase already ran them and repaired defects once — this is your confirmation run). Authored/re-authored tests should be **red for the right reason** — a failed assertion or an expected "feature absent" error, **not** a compile error:
 - Compile error → a test referenced something nonexistent at the wrong boundary (violates Core rule 3). Fix to the CLI/HTTP/SQL boundary, or revert that one to its prior `#[ignore]` and report it. Never leave the suite uncompilable.
 - Fails an assertion / expected error → correct (red checkpoint for spec-build).
 - A NEW or CHANGED test that **passes immediately** → the claim is already satisfied; keep it (now real coverage) and note it.
@@ -93,6 +102,8 @@ It returns per-file counts, the orphan list, `could_not_author`, and:
 **4c. Surface orphans.** List every quarantined orphan with its old claim reference so the user can confirm deletion (or restore the claim to the spec). Do not delete them yourself.
 
 **4d. Could-not-author is a decision gate (do not auto-proceed).** If *any* claim could not be authored, this skill **stops at its report** and does not hand off to spec-build. These are claims with no executable test, so spec-build cannot drive or verify them — running it anyway would silently ship unverified behavior, the exact failure mode this loop exists to prevent. The user decides per item whether to (a) resolve it (add the missing harness capability / fix the spec) and re-run spec-test-author, or (b) explicitly accept it as known-unverified and proceed. The skill must not make that call itself.
+
+**4d-2. Test-defect is a decision gate (do not auto-proceed).** If `test_defect` is non-empty, those authored tests **still fail at compile/setup** (not at their claim assertion) after one automatic repair — the *test* is broken (a colliding seed, a non-existent field/API, a false-positive assertion, a mis-driven PTY), not the production code. Do not hand off to spec-build: it cannot drive a test that never reaches its assertion, and it must not implement production to satisfy a buggy test. Per item the user/driver (a) fixes the test (often by re-running spec-test-author scoped to that file with the runtime error in hand), (b) rescopes the claim, or (c) accepts it as known-unverified. A faithful red test fails at an **assertion about the claim**; a compile/setup failure signals a defect to repair, not a gap to implement.
 
 **4e. Weak coverage is a decision gate (do not auto-proceed).** If `weak_coverage` is non-empty, those authored tests *compile and are red*, but two reviewers independently confirmed (even after a strengthen retry) that passing them would **not** prove their claim — a green there would be a false guarantee, which is as dangerous as no test. Treat it exactly like could-not-author: **stop at the report**, do not hand off to spec-build. Per item the user (a) accepts the suggested strengthening / adds the harness capability needed to assert the claim faithfully and re-runs spec-test-author, (b) rescopes the claim in the zettel so the weaker assertion is in fact faithful, or (c) explicitly accepts it as known-weak coverage and proceeds. The skill never silently ships a test that doesn't prove its claim.
 
