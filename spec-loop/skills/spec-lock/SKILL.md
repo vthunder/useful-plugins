@@ -186,4 +186,4 @@ spec-lock only *detects and marks* spec changes — it leaves new claims as **ig
 1. **spec-test-author** — reconciles the suite to the current spec without writing production code: authors new stubs into real failing tests, re-authors changed-claim tests to the current claim, and quarantines orphaned tests whose claim was removed.
 2. **spec-build** — implements production code until those tests pass.
 
-Run `spec-test-author` next, then `spec-build`.
+Run `spec-test-author` next, then `spec-build`. To drive all three end-to-end (stopping at each human gate), run the `spec-loop` skill instead.
