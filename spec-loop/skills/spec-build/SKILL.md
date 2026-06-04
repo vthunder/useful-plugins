@@ -45,7 +45,7 @@ Collect the list of failing tests from the test runner output. For each failing 
 
 Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `spec-loop@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/spec-build-gap-parse.js`.
 
-**Write the failing tests to a file, then pass the file path** (failure outputs are bulky and inline `args` over ~500 chars get corrupted in transit). Write a JSON array — one object per failing test `{ name, file, line, failure_output }` — to an absolute path (e.g. `<repo>/.spec-loop/failures.json`), then invoke the Workflow tool with `scriptPath` set to the resolved path, passing the compact reference:
+**Write the failing tests to a file, then pass the file path** (failure outputs are bulky; in a file, each classifier agent reads only its own entry instead of every failure riding in the prompt). Write a JSON array — one object per failing test `{ name, file, line, failure_output }` — to an absolute path (e.g. `<repo>/.spec-loop/failures.json`), then invoke the Workflow tool with `scriptPath` set to the resolved path, passing the compact reference:
 
 ```json
 {
@@ -56,7 +56,7 @@ Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json
 }
 ```
 
-Each classifier agent reads element `[i]` of that file. **Uniform file contract:** always write the file, even for a single failing test — never inline the list (the runtime can corrupt inline `args` over ~500 chars).
+Each classifier agent reads element `[i]` of that file. **Uniform file contract:** always write the file, even for a single failing test — never inline the list, so there's no per-call size judgment and the bulky failure outputs stay out of the control args.
 
 The workflow classifies all failing tests in parallel (one agent per test), then runs 3-interpreter adversarial verification on any `ambiguous` classifications to filter false positives — tests that look ambiguous but actually have a clear spec interpretation are downgraded to `assertion`. Results are sorted into processing order: `compile` first, then `stub`, then `assertion`, `ambiguous` last.
 
@@ -136,7 +136,7 @@ Use this **instead of Step 4** when `--parallel` is set. It implements file-disj
 
 **Run the workflow.** Resolve `spec-loop@useful-plugins` installPath; the script is `<installPath>/workflows/spec-build-impl.js`. Invoke Workflow with:
 
-**Write the gaps to a file, then pass the file path** (gap lists are bulky; inline `args` over ~500 chars get corrupted in transit). Write a JSON array — one object per gap `{ id, test_name, test_file, zettel_id, claim, failure_summary }` — to an absolute path (e.g. `<repo>/.spec-loop/gaps.json`), then invoke Workflow with the compact reference plus the scalars:
+**Write the gaps to a file, then pass the file path** (gap lists are bulky; in a file each planning agent reads only its own gap instead of the whole list riding in the prompt). Write a JSON array — one object per gap `{ id, test_name, test_file, zettel_id, claim, failure_summary }` — to an absolute path (e.g. `<repo>/.spec-loop/gaps.json`), then invoke Workflow with the compact reference plus the scalars:
 
 ```json
 {

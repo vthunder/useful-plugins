@@ -12,9 +12,8 @@ export const meta = {
 // args (uniform file contract): { zettels_file: <abs path to JSON array of zettel
 // paths>, zettel_count: N, library_path: string, test_dir?: string }
 // The array ALWAYS lives in a file — the workflow never receives it inline — so the
-// caller never has to judge payload size or split invocations. The runtime can deliver
-// `args` as a JSON string and corrupt long inline strings; keeping only the path +
-// count + short scalars inline sidesteps that entirely.
+// caller never has to judge payload size or split invocations, and the per-zettel data
+// never travels through the prompt (each agent reads only the entry it needs).
 function parseArgs(a) {
   if (a == null) return {}
   if (typeof a !== 'string') return a

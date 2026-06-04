@@ -81,7 +81,7 @@ task list with no args defaults to assigned-to-me view
 
 Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `zettel@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/zettel-audit-semantic.js`.
 
-**Write a compact corpus *digest* to a file, then pass the file path** (uniform file contract — never inline the corpus; full bodies are large and inline `args` get corrupted/expensive). The digest is a projection, not the raw bodies: drop the prose exposition and keep the *checkable surface*. Build it from the inventories you already extracted in Step 3 — one entry per zettel:
+**Write a compact corpus *digest* to a file, then pass the file path** (uniform file contract — never inline the corpus; full bodies are large, and a file lets each agent read only what it needs instead of re-embedding the whole corpus in every prompt). The digest is a projection, not the raw bodies: drop the prose exposition and keep the *checkable surface*. Build it from the inventories you already extracted in Step 3 — one entry per zettel:
 
 ```json
 [{ "id": "...", "path": "<abs path to the .md>", "links": [...],

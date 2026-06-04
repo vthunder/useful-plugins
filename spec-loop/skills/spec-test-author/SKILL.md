@@ -68,7 +68,7 @@ Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json
 
 One agent per file; each agent re-discovers the NEW/CHANGED/ORPHANED work by scanning its own file (the stub markers and `spec:` comments live there) and infers fixtures/seed-helpers from sibling real tests — so no per-fn lists or `conventions` blob need to travel through args.
 
-> **Uniform file contract.** Every spec-loop workflow takes its list as a *file path + count*, never an inline array — so you never judge payload size or split invocations (the runtime can corrupt inline `args` over ~500 chars). Always write the file, regardless of item count. Your Step-2 scan still drives the human-facing report; the agents re-derive the per-file work.
+> **Uniform file contract.** Every spec-loop workflow takes its list as a *file path + count*, never an inline array — so you never judge payload size or split invocations, and the per-item data never travels through the prompt at all (each agent re-derives its per-file work by scanning the file). Always write the file, regardless of item count. Your Step-2 scan still drives the human-facing report.
 
 Each agent, for its file:
 - **NEW** → writes a real arrange/act/assert body from the current claim; removes `#[ignore]`.

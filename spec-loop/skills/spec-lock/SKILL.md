@@ -89,7 +89,7 @@ Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json
 }
 ```
 
-> **Uniform file contract.** Every spec-loop workflow takes its list as a *file path + count*, never an inline array — so you never have to judge payload size or split invocations. (The runtime can corrupt inline `args` over ~500 chars; keeping only a path + count + short scalars inline sidesteps it entirely.) Always write the file, regardless of how few items there are.
+> **Uniform file contract.** Every spec-loop workflow takes its list as a *file path + count*, never an inline array — so you never have to judge payload size or split invocations, and the large per-item data never travels through the prompt (each agent reads only the entry it needs). Always write the file, regardless of how few items there are.
 
 The workflow runs `spec-test-gen` on all changed zettels in parallel, retries any that fail to stamp `tests:` frontmatter, then runs an **always-on completeness check** (two blind critics re-enumerate each zettel's testable claims and a reconciler keeps only the claims BOTH independently flag as unstubbed — a 2/2 vote). Any confirmed-missing claim is remediated (stubs re-generated) and re-verified once. It returns:
 - `results` — per-zettel summary (stubs written, test files, covered flag)
