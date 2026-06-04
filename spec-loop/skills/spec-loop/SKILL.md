@@ -25,6 +25,7 @@ This loop's value is that **green ⟺ spec satisfied**. Every gate exists becaus
 
 | Stage | Gate | Surfaced as |
 |---|---|---|
+| spec-lock | **Patch reconciliation** — a `spec-patch` change needs a claim confirmed or its deferred test is weak | spec-lock Step 0 (driver actively reconciles, asking the user when needed) |
 | spec-lock | Blocking audit question / audit not clean after 5 cycles | spec-lock stops before commit |
 | spec-lock | **Completeness** — **blocking** (new/changed-claim) item with no stub after remediation (`incomplete`) | spec-lock Step 4 hard gate (advisory pre-existing holes don't block) |
 | spec-test-author | **Could-not-author** — claim with no executable test (`could_not_author`) | spec-test-author Step 4d |
@@ -33,6 +34,10 @@ This loop's value is that **green ⟺ spec satisfied**. Every gate exists becaus
 | spec-build | **SPEC GAP** / blocked gap — genuine ambiguity or impossible-at-this-layer | spec-build Step 6 / 6.5 |
 
 `--auto-accept-unverified` (default **off**) is the only switch that lets the driver record a gate item as "accepted, known-unverified" and continue. Even then it logs every accepted item loudly in the final report. Without it, any gate ends the run.
+
+## Relationship to spec-patch (the fast lane)
+
+Small, localized changes (bug fixes, behavior tweaks) can be shipped between full runs via `spec-patch`, which proves a red→green test but **defers** the spec-side work — folding the change into a claim and adversarially verifying its test — leaving a `// spec-patch: unreconciled` marker on the test. This driver is where that debt is paid: spec-lock's **Step 0** greps those markers and reconciles each one (confirming/adding the claim, running the deferred verification) *before* the normal flow. A full `spec-loop` therefore cannot report "complete" while any unreconciled patch remains — and it reaches complete by doing the reconciliation work, not by bailing. Net invariant: **after any full loop, every patch since the last run is folded into the spec and verified at full strength.**
 
 ## Inputs
 
@@ -60,7 +65,8 @@ Resolve once and reuse for every stage:
 
 Run the `spec-lock` skill with the resolved `--since` / `--library`.
 
-- If spec-lock reports **"No changed zettels"**: the spec is unchanged. Skip to Step 3 (spec-build may still have red tests to drive from a prior interrupted run). If spec-build also finds all green, report "loop already complete" and exit.
+- If spec-lock reports **"No changed zettels"** *and* found no spec-patch markers to reconcile: the spec is unchanged. Skip to Step 3 (spec-build may still have red tests to drive from a prior interrupted run). If spec-build also finds all green, report "loop already complete" and exit.
+- If spec-lock's **Step 0 patch reconciliation** surfaced a problem it couldn't finish (an unconfirmed spec-silent claim, or a deferred patch test judged weak): **STOP** and relay it. The driver actively reconciles — drafting claims and asking the user to confirm — but a claim the user hasn't approved or a test that wouldn't prove its claim is a real gate, not something to wave through. Once resolved, the patch's marker is rewritten to a normal `spec:` reference and the run continues.
 - If spec-lock stops at its **blocking-audit** gate or its **completeness** gate (a **blocking**, new/changed-claim item in `incomplete`): **STOP**. Relay spec-lock's gate report verbatim and the resume instruction. Do not continue. Advisory pre-existing coverage holes do not stop the loop — spec-lock reports them non-blocking and continues. (With `--auto-accept-unverified`, blocking completeness items still cannot be auto-accepted — a missing test is not something the driver can fabricate; this gate is always hard.)
 - Otherwise spec-lock has committed audit fixes + stubs (completeness clean). Continue.
 
@@ -100,6 +106,7 @@ spec-loop — <complete | paused at gate>
 Library: <path>     Test cmd: <cmd>     Cycles: N / <max>
 
 spec-lock
+  Patches reconciled: N   (spec-patch markers folded into spec + verified)
   Changed zettels: N     Audit fixes: N
   Stubs written/updated: N / N
   Completeness: clean (recovered N missing) | ⛔ GATE: N blocking still missing   (advisory pre-existing holes: N)

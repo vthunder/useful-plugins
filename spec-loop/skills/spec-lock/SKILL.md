@@ -23,6 +23,31 @@ The target library is the one marked `default: true`, or the first entry whose `
 - Optional: `--since <ref>` — git ref to diff against (default: `HEAD`, meaning changes staged/unstaged relative to the last commit; if the working tree is clean, use the parent commit `HEAD~1`).
 - Optional: `--library <name>` — override library selection by name.
 
+## Step 0 — Reconcile spec-patch markers (deferred-verification paydown)
+
+`spec-patch` (the fast lane) ships small changes — bug fixes and behavior tweaks — on a thinner guarantee: a proven red→green test, with the spec-side work *deferred*, not skipped. Each such test carries a marker comment:
+
+```
+// spec-patch: unreconciled — <zettel-id | "spec-silent"> — <YYYY-MM-DD> — <one-line description>
+```
+
+Before anything else, redeem those IOUs. Grep the test directory:
+
+```
+grep -rn "spec-patch: unreconciled" <test-dir>
+```
+
+If there are none, skip to Step 1. Otherwise, for **each** marked test, **actively reconcile it** — the goal is to *finish the reconciliation*, including asking the user when a judgment call is needed; never merely fail because markers exist:
+
+1. **Ensure spec coverage.**
+   - `spec-silent` → draft a one-line claim describing the now-correct behavior and **ask the user to confirm or edit it** before writing it to the appropriate zettel (pick by topic/tags; ask if unclear). Never invent a claim silently.
+   - `<zettel-id>` given → re-read that zettel. If the patch changed what a claim says, update the claim text to match the shipped behavior (this is a spec change — treat it like any audited edit). If a claim already covers it correctly, no edit is needed.
+2. **Run the deferred adversarial verification** the fast lane skipped, on this patch test — the same panels the normal loop applies: the completeness check (is the claim now stubbed/tested?) and the semantic coverage review (would this test, if green, prove its claim at full strength?). Reuse the existing workflows where they fit: once the claim is stamped, the test-gen completeness pass (Step 3) picks it up, and spec-test-author's coverage verification covers the test on the next stage. At minimum, judge each patch test here for `too_weak` / `over_asserts` / `wrong_boundary` and flag any that wouldn't prove their claim.
+3. **On success** — claim present and test verified — rewrite the marker to a normal spec reference comment (`spec: <id> claim <N> — <text>`) and ensure the zettel's `tests:` frontmatter includes the file. The unreconciled marker is now gone.
+4. **On a problem** — the patch test is weak/over-asserts, or the user can't confirm a claim — fold it into this run's normal work: the weak test joins the items spec-test-author will re-author; an unresolved claim is surfaced like any blocking spec gap. Do **not** strip the marker until it's genuinely resolved.
+
+Add every zettel touched here to `changed_zettels` (Step 1) so the rest of this run — audit, stub-gen, completeness — applies to them too. After this step, each former patch is either folded into the spec and verified, or surfaced as an explicit gate item; no marker silently survives a completed loop.
+
 ## Step 1 — Detect changed zettels
 
 Run:
@@ -36,9 +61,9 @@ If `--since` was given, use that ref. Otherwise:
 
 Filter to files matching `*.md` and exclude `INDEX.md` and `moc-*.md`.
 
-If no changed zettels are found, report "No changed zettels detected since <ref>." and exit cleanly — do not proceed to audit or commit.
+Record the list as `changed_zettels` (list of file paths), **unioned with any zettels added by Step 0's patch reconciliation**.
 
-Record the list as `changed_zettels` (list of file paths).
+If `changed_zettels` is empty *and* Step 0 found no spec-patch markers, report "No changed zettels detected since <ref>." and exit cleanly — do not proceed to audit or commit. (If Step 0 reconciled patches, continue even when the diff alone shows no changed zettels — the patch-touched zettels are the work.)
 
 ## Step 2 — Audit loop
 
