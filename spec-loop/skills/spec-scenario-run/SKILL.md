@@ -16,6 +16,22 @@ The agent that **experiences** friction must never be the agent that **certifies
 
 This skill also **never gates a merge.** A satisfaction score gates *attention*, not shipping.
 
+## Scenario zettel format
+
+A scenario zettel is **only the journey** — lean, durable spec content. Canonical sections:
+
+- **Persona** — who the user is and what they know/don't know.
+- **Goal** — the outcome to achieve, stated as outcomes not keystrokes (so the driver must discover the path). No step list.
+- **Setup** — how the instance is seeded and how the persona connects.
+- **Success looks like** — the goal-reached criteria.
+- **Out of scope** — what this journey deliberately ignores.
+
+Frontmatter: `tags:` includes `scenario`; `links:` lists the claim zettels the journey traverses; no `tests:` (non-claim-bearing).
+
+**Keep out of the zettel:**
+- *Authoring guidance / meta-commentary* ("stated as outcomes by design", "this is a non-claim-bearing zettel…") — that lives here in the skill and in INDEX, not repeated in every file.
+- *Runtime findings* — friction this scenario has surfaced is **ephemeral output**; it lives in `friction-proposal` beans and run reports, never baked into the spec. Beyond being stale-prone, a "known friction" list in the body is a **holdout leak**: the driver (Step 1) is given only Persona/Goal/Success precisely so it discovers friction blind. Anything in the zettel that hints where the path breaks defeats that.
+
 ## Inputs
 
 - A scenario reference: a `scenario`-tagged zettel `id`, a file path, or `--all-scenarios` to run the whole suite.
