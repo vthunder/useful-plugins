@@ -1,6 +1,6 @@
 {
   "name": "zettel",
-  "description": "Zettelkasten skills — create, edit, search, link, convert, index, archive, lint, visualize, render, query, and diff atomic notes across evergreen and release-spec libraries",
+  "description": "Zettelkasten skills — create, edit, search, link, convert, index, archive, lint, visualize, render, query, diff, and interactively navigate atomic notes across evergreen and release-spec libraries",
   "author": {
     "name": "Dan Mills"
   },
