@@ -18,6 +18,8 @@ One of:
 
 Optionally: `--output <filepath>` to write the result to a file instead of printing. `--library <name>` can be combined with any of the above to target a specific library.
 
+Optionally: `--no-scenarios` — exclude `scenario`-tagged zettels (non-claim-bearing end-to-end journeys) for a pure claims/behavior spec. By **default scenarios ARE included**, grouped under their own section. They are legitimate spec content (user journeys), so a full render shows them — but under the INDEX "Scenarios" heading, kept visually separate from the claim-bearing zettels, never interleaved with them.
+
 ## Library resolution
 
 Standard resolution order:
@@ -36,6 +38,7 @@ If `--library` is given, search both local and global configs by name.
    - For `--tag`: grep `<library-path>/*.md` for `tags:` containing `<tag>`. Sort by `created:` ascending.
    - For `--slugs`: resolve each slug/ID to a file path in order given.
    - For `--library`: check for `INDEX.md` first — if present, use the `[[id]]` order from INDEX.md (this is the authoritative order for release-spec libraries). If no INDEX.md but a MOC exists, use MOC order for indexed zettels then append unindexed by creation date. If neither, sort all by creation date. If INDEX.md has sections (`##` headings), preserve them as section headings in the rendered document.
+   - **Scenario zettels:** if `--no-scenarios` is set, drop every `scenario`-tagged zettel from the selection (in any mode). Otherwise include them, but **grouped, not interleaved**: with INDEX.md its "Scenarios" section already places them last (nothing to do); without INDEX.md, collect `scenario`-tagged zettels into a trailing "Scenarios" section after the claim-bearing ones rather than mixing them into creation-date order.
 
 3. **Read each zettel.** Extract title, tags, body. Strip frontmatter from output.
 
