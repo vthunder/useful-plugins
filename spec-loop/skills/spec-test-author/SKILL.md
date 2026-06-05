@@ -34,6 +34,7 @@ Loop position: **spec-lock → spec-test-author → spec-build**.
 4. **Match claims by text/meaning, not by number.** Claim numbers shift when claims are inserted or removed, so `claim <N>` references drift. Reconcile a test against the *content* of the zettel's claims; update the `spec: <id> claim <N> — <text>` comment to the current number+text when you touch a test.
 5. **Never delete a test function.** Every claim that had a stub keeps a function — the test count never decreases. A stub you can't author stays in the file as an `#[ignore]` stub (restored verbatim if touched); an orphan is quarantined with `#[ignore]`, never deleted (Step 4c). A could-not-author entry with no surviving `#[ignore]` function in the file is a bug. Removing or weakening a test that still maps to a current claim requires surfacing it for human review, not doing it silently.
 6. **Remove `#[ignore]`** (and the `"stub: not yet implemented"` / `FIXME` markers) once a test is real and matches the current claim, so it runs.
+7. **`scenario`-tagged zettels are out of scope.** They are non-claim-bearing journeys verified by `spec-scenario-run`, never by claim-tests — spec-test-gen writes no stubs for them, so there is nothing here to author or reconcile. If a drift check leads you to a `scenario` zettel, skip it; do not invent a claim-test for a journey.
 
 ## Step 1 — Resolve library, test dir, and conventions
 

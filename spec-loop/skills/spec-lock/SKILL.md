@@ -63,6 +63,12 @@ Filter to files matching `*.md` and exclude `INDEX.md` and `moc-*.md`.
 
 Record the list as `changed_zettels` (list of file paths), **unioned with any zettels added by Step 0's patch reconciliation**.
 
+**Partition by claim-bearing vs `scenario`.** A changed zettel whose frontmatter `tags` include `scenario` is **non-claim-bearing** (an end-to-end journey verified by `spec-scenario-run`, not by claim-tests). Such zettels:
+- **DO** go through the audit (Step 2) — they must stay congruent with the claims they traverse.
+- **DO NOT** go through test-gen (Step 3) or the completeness gate (Step 4) — they have no testable claims, so they can never be "incomplete." Exclude them from `changed_zettels` before Step 3.
+
+Keep them in an `scenario_zettels` list for the audit and the report.
+
 If `changed_zettels` is empty *and* Step 0 found no spec-patch markers, report "No changed zettels detected since <ref>." and exit cleanly — do not proceed to audit or commit. (If Step 0 reconciled patches, continue even when the diff alone shows no changed zettels — the patch-touched zettels are the work.)
 
 ## Step 2 — Audit loop

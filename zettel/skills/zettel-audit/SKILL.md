@@ -77,6 +77,17 @@ task list with no args defaults to assigned-to-me view
 "standalone mode"   defined in [20260526-multi-auth-strategy]
 ```
 
+### 3b. Scenario congruence (non-claim-bearing `scenario` zettels)
+
+A zettel tagged `scenario` describes an end-to-end user **journey**, not atomic claims. It is verified at runtime by `spec-scenario-run` (a friction pass), **never** by claim-tests — so it carries no `tests:` frontmatter and is never flagged for missing coverage. Audit's job for these zettels is **consistency, not satisfaction**: check that the journey stays congruent with the claims it traverses. Audit must **never** try to assert that a scenario "passes" or "fails" — that is the run's job, and a different organ entirely.
+
+For each `scenario`-tagged zettel, check:
+
+- **Link resolution** — every slug in its `links:` resolves to a current zettel (this is mechanical check 2a; emphasize it for scenarios because a scenario pointing at a deleted/renamed claim is stale). Report unresolved links as `[scenario-stale-link]`.
+- **Flow plausibility** — the commands, subcommands, and flags the journey assumes (in its Goal / Success-looks-like / setup prose) exist in the **interface inventory** built in step 3. A scenario that drives `sprint setup`, `query releases`, or `--sprint next` while no claim describes that surface is either stale or points at a real spec gap. Report as `[scenario-incongruent] <scenario-id> — assumes <command/flag> not described by any claim`.
+
+These are **consistency findings**, surfaced in the report like any other; they do not gate, and they never cause a scenario to be edited by this skill.
+
 ### 4. Semantic consistency checks (parallel workflow)
 
 Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json`, find `zettel@useful-plugins`, take its `installPath`. The script is at `<installPath>/workflows/zettel-audit-semantic.js`.
@@ -156,6 +167,12 @@ SEMANTIC (N issues)
 
 [open-question] <slug> — "<quoted unresolved question or TODO>"
   → Resolution required before this spec section is implementable
+
+[scenario-stale-link] <scenario-id> — links: [<missing-slug>] no longer resolves
+  → Suggested fix: repoint the journey at the current claim, or drop the link
+
+[scenario-incongruent] <scenario-id> — assumes <command/flag> not described by any claim
+  → Suggested fix: the journey is stale (update it) OR it points at a real spec gap (add/expand a claim zettel)
 
 SUMMARY
 ───────

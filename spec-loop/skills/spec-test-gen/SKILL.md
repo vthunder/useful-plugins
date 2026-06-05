@@ -30,6 +30,8 @@ For each input zettel, read the file completely. Note:
 - The full body text.
 - Any existing `tests:` frontmatter field (list of test file paths).
 
+> **Skip `scenario`-tagged zettels.** A zettel tagged `scenario` is **non-claim-bearing**: it describes an end-to-end user journey, not atomic assertable facts. Its verification is a `spec-scenario-run` friction pass, not executable claim-tests. If a zettel's `tags` include `scenario`, do not enumerate claims or write stubs for it — note it as skipped (non-claim-bearing) and move on. (It still participates in `zettel-audit` congruence checks; it just never reaches this skill's claim machinery.)
+
 ## Step 2 — Enumerate testable claims
 
 A **testable claim** is any assertion that can be verified by running code. Scan the zettel body (and title) and produce a numbered list of candidate claims.
