@@ -34,7 +34,7 @@ Frontmatter: `tags:` includes `scenario`; `links:` lists the claim zettels the j
 
 ## Inputs
 
-- A scenario reference: a `scenario`-tagged zettel `id`, a file path, or `--all-scenarios` to run the whole suite.
+- An optional scenario reference: a `scenario`-tagged zettel `id` or a file path to scope the run to **one** scenario. **With no reference, the default is the whole suite** (every `scenario`-tagged zettel in the library) — the suite is the intended unit, since cross-scenario recurrence (different personas hitting one root cause) is the strongest signal, and dedup (Step 4) makes repeated full-suite runs cheap in the tracker. `--all-scenarios` is accepted as the explicit spelling of that default.
 - `--runs <N>` — full journey runs per scenario (default **1**, **adaptive**). A full journey is the dominant cost (a long agent session), so run it **once** by default. Confirmation does **not** come from re-driving the whole journey — it comes from the per-finding **verifier** (Step 3), which reproduces a *single* finding by re-running just its commands on a fresh seeded instance (seconds, not a full re-drive). That targeted reproduction is the always-on confirmation; a second full journey is the exception. **Escalate to a 2nd journey only when the verifier cannot cleanly reproduce-or-refute a proposal-worthy finding in isolation** — i.e. it looks genuinely *path-dependent* (the friction may depend on the exact sequence the driver took). That trigger is rarely true, unlike "any finding appeared" (which is almost always true and would collapse to always-running-2). An explicit `--runs <N>` skips the adaptive rule and runs exactly N full journeys.
   - *Rationale:* most friction is **structural** (deterministic — a missing command, a silent no-op), caught in one run and confirmed by targeted reproduction. The failure mode a second *journey* would guard against — a one-off fluke of the path — is rare; the failure mode we actually see is the driver **misreading** (bad input, undiscovered command), which the verifier's reproduction catches. And the strongest recurrence signal comes from **different scenarios** hitting the same root cause (two personas, one bug), which a broad suite gives for free — not from N runs of one journey.
 - `--harness <path>` — the project's scenario harness providing `up`/`seed`/`ssh`/`tui-*`/`down` (default: auto-detect, step 1).
@@ -45,7 +45,7 @@ Frontmatter: `tags:` includes `scenario`; `links:` lists the claim zettels the j
 ## Step 0 — Resolve context
 
 - **Library** — same order as spec-test-gen (`.zettel-libraries.yaml` → `~/.config/zettel/libraries.yaml` → `./docs/zettel/`).
-- **Scenario(s)** — resolve the reference to one or more `scenario`-tagged zettels. If a referenced zettel is **not** tagged `scenario`, stop: this skill only drives scenario zettels.
+- **Scenario(s)** — if a reference was given, resolve it to that one zettel; **if no reference was given, select every `scenario`-tagged zettel in the library** (the default whole-suite run). If a referenced zettel is **not** tagged `scenario`, stop: this skill only drives scenario zettels.
 - **Harness** — `--harness` → `scenario-sandbox.sh` at repo root → a `scenario_harness` key in `.claude/settings.json`/`CLAUDE.md`. The harness MUST expose: `up`, `seed`, `ssh "<cmd>"`, `tui-open/tui-keys/tui-screen/tui-close`, `down`. If none is found, stop and report what's missing (the harness is a prerequisite — see the digital-twin/harness bean).
 - Record `runs = N`.
 
