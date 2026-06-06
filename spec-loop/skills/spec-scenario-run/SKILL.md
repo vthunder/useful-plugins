@@ -101,13 +101,25 @@ Drop findings the verifier refutes (record them as "investigated, not real" — 
 
 ## Step 4 — Route into lanes
 
-For each surviving finding, by `candidate_lane`:
+**First, dedupe against existing proposals — never file a duplicate.** This skill is meant to be run repeatedly (and across a suite), so the same friction will resurface. Before creating *any* `friction-proposal` bean, search for an existing one for the same finding:
+
+```
+beans list --json --tag friction-proposal            # the open proposal set
+```
+
+Match a surviving finding to an existing bean by **(scenario id + the affordance it concerns)** — the command/flag/screen at fault and the `kind` — not by exact wording (the judge phrases it differently each run). When in doubt, read the candidate bean's body and decide if it's the same underlying friction.
+
+- **Existing open bean found** → **update it, don't create.** Bump its recurrence (append this run's date + `k/N`), add any new evidence excerpt, and refresh severity if it changed. One bean per distinct friction, accumulating evidence across runs — that *strengthens* the signal instead of cluttering the tracker.
+- **A matching bean exists but is `completed`/`scrapped`** (the friction was fixed or rejected) and the finding **reproduced again** → this is a **regression or a reopened decision**: create a new bean that references the old one, rather than silently reopening. Flag it in the report.
+- **No match** → create a new `friction-proposal` bean.
+
+Then, for each surviving finding, by `candidate_lane`:
 
 - **Lane 1 — product-direction** (the spec is genuinely silent on *intent*; no deductive test could settle it): **always file a `friction-proposal` bean as a question for a human.** Never invent the product direction. Not subject to `--live` auto-flow.
 - **Lane 2 — small, unambiguous fix** (confusing error, missing obvious flag, silent no-op): file a `friction-proposal` bean. Under `--live` **and** recurrence ≥ `--threshold` **and** a clean single direction → additionally invoke `spec-patch` with the proposed change (red→green now; full reconciliation deferred to the next `spec-loop`).
 - **Lane 3 — larger / multi-claim gap**: file a `friction-proposal` bean carrying a **candidate claim** (drafted claim text + which zettel it belongs in). Under `--live` **and** recurrence ≥ `--threshold` → hand the candidate claim to the normal hard loop (it enters at `spec-lock`; `spec-test-author` — *not this skill* — writes the test). Below threshold → leave as a draft bean for human triage.
 
-Every `friction-proposal` bean is tagged `friction-proposal` and carries: scenario id, recurrence, evidence excerpt, proposed direction(s), and lane. In propose mode (default) **all** routing stops at the draft bean — review the batch, then re-run with `--live` (per lane) once trustworthy.
+Every `friction-proposal` bean is tagged `friction-proposal` and carries: **scenario id**, **the affordance at fault** (command/flag/screen + `kind`) — these two are its dedup identity — plus recurrence, evidence excerpt(s), proposed direction(s), and lane. In propose mode (default) **all** routing stops at the draft bean — review the batch, then re-run with `--live` (per lane) once trustworthy.
 
 ## Step 5 — Report
 
@@ -121,7 +133,9 @@ Satisfaction: <goal-reached runs>/N   (suite: <avg> across <M> scenarios)
 Findings (verified):
   [L<lane>] <observed issue>   recurrence k/N   severity
      evidence: <excerpt>
-     → <proposed direction(s)>   ⇒ friction-proposal <bean-id> [+ spec-patch/candidate-claim if --live]
+     → <proposed direction(s)>   ⇒ friction-proposal <bean-id> (new | updated existing) [+ spec-patch/candidate-claim if --live]
+
+Proposals: <C> new, <U> updated existing, <R> reopened (regression)
 
 Refuted (driver-error / not reproducible):
   <issue> — why refuted
@@ -137,3 +151,4 @@ End with the single most useful line: `<N> verified friction finding(s) — <M> 
 - Never let the driver see the claims, the step list, or the scenario's "known friction" — that defeats discovery and the holdout separation.
 - Never report a finding without recurrence and a verbatim evidence excerpt, and never skip Step 3 (a friction finding that wasn't refutation-tested is not ready to propose).
 - Never gate a merge or auto-decide a Lane-1 product question.
+- Never file a duplicate `friction-proposal` — always dedupe against existing open proposals first (Step 4) and update-in-place when the same friction recurs.
