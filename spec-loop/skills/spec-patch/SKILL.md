@@ -44,6 +44,7 @@ There is no ledger file. The ledger is a grep over the test directory. Every tes
 - A description of the change (bug to fix or behavior to adjust). Usually given in the invoking message.
 - Optional: `--test-cmd <command>` — override the test command (default: auto-detect, same order as spec-build: `--test-cmd` → settings/CLAUDE.md → Cargo/npm/pytest → `make test`).
 - Optional: `--no-commit` — make the change but don't commit.
+- Optional: `--defer-regression` — skip the **full-suite** regression run for this invocation. The single red→green patch test still runs and must pass (that floor is never deferrable); only the minutes-long full suite is postponed. Use it to batch several small patches: defer on each, then settle the debt once with a final full run. **Default off.** See Step 4.
 
 ## Step 1 — Locate the relevant claim (or confirm the spec is silent)
 
@@ -70,10 +71,18 @@ Add the `spec-patch: unreconciled` marker comment above the test.
 
 Make the **minimal** code change that turns the behavior correct. Do not refactor unrelated code. Do not touch other tests.
 
-## Step 4 — Prove it green, and guard against regressions
+## Step 4 — Prove it green (single test always; full suite now or deferred)
 
-1. Run the single patch test — it must now pass.
-2. Run the **full** suite with `<test-cmd>` — it must be all green. A localized change that breaks another test is not done; fix it before committing.
+1. **Run the single patch test — it must now pass. This is never skipped, ever, regardless of any flag.** The red→green proof is the floor of the fast lane.
+2. **Regression guard — the full suite with `<test-cmd>`.** A localized change that breaks another test is not done.
+   - **Default (no `--defer-regression`):** run the full suite now; it must be all green before you commit. Fix any breakage first.
+   - **Deferred (`--defer-regression`):** when you're landing several small patches in a row, the minutes-long full suite doesn't need to run after *every* one. Skip it for this invocation and commit on the strength of the single patch test alone. **The cost is real:** the tree is now *unverified since the last full-suite-green commit* — a regression introduced anywhere in the deferred batch won't surface until you settle, and when it does you'll have several commits to bisect. So keep deferred runs to a short streak, not an open-ended one.
+
+**Settling the deferred regression (mandatory before the batch is trustworthy).** A deferred batch is not "shipped" until a full suite has passed over it. Settle by either:
+- running the **last** patch of the streak *without* `--defer-regression` (so its Step 4 runs the full suite, which now covers every change in the batch), or
+- running `<test-cmd>` directly once you're done batching.
+
+If that settling run is red, the culprit is somewhere in the deferred batch — bisect the commits since the last full-green and fix forward (or, if the failure reveals deeper entanglement, route the offending change to `spec-loop`). Do not leave a deferred batch unsettled across a stopping point: a green single-test with an unsettled suite is a weaker guarantee than this skill is allowed to *end* on.
 
 If you can't get the full suite green within a few honest attempts and the failure reveals deeper entanglement, this wasn't a fast-lane change after all — stop and route it to `spec-loop`.
 
@@ -101,16 +110,19 @@ spec-patch complete
 Change: <one-line description>
 Spec: <zettel-id> claim <N> (violated existing claim | claim updated | spec-silent)
 Test: <fn> — red at assertion (unchanged code) → green (after change)
-Full suite: all green (N tests)
+Full suite: all green (N tests)  |  ⏳ DEFERRED (--defer-regression) — settle before trusting the batch
 Marker: spec-patch: unreconciled — <...>   (← reconciled by next full spec-loop)
 Committed: <sha> (or "skipped, --no-commit")
 ```
 
 End with: `Patched and shipped. Spec reconciliation deferred — the next `spec-loop` run will fold this into the spec and verify it at full strength.`
 
+When the full suite was deferred, append a second line making the outstanding debt explicit, e.g.: `⏳ Regression deferred — N patch(es) committed unverified-as-a-whole since <last-green sha>. Settle with a full `<test-cmd>` run (or drop --defer-regression on the next patch) before you stop.`
+
 ## What this skill must never do
 
-- Never ship a change without a test that was **red for the right reason** first. The red→green proof is the floor; it is not optional, ever.
+- Never ship a change without a test that was **red for the right reason** first. The red→green proof is the floor; it is not optional, ever — `--defer-regression` defers the *full suite*, never the single patch test.
+- Never *end* on an unsettled deferred batch. `--defer-regression` postpones the full-suite run within a streak; it does not waive it. Before you stop, a full `<test-cmd>` must have passed over the batch — otherwise you've shipped commits whose interactions were never verified.
 - Never skip the marker. An unreconciled change with no marker is invisible to reconciliation — a silent spec drift, the exact failure this design prevents.
 - Never guess past a genuine ambiguity, and never take on a large or interdependent behavior change. Those belong in `spec-loop`. The fast lane is for changes small enough to verify by eye.
 - Never remove your own marker or claim "reconciled." Only a full `spec-loop` run (spec-lock Step 0), having run the deferred verification, may do that.
