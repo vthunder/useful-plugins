@@ -12,7 +12,7 @@ It takes a **scenario zettel** (a broad, goal-stated user journey — see the `s
 
 ## The one invariant: define ≠ certify
 
-The agent that **experiences** friction must never be the agent that **certifies** the fix. This skill only *discovers and proposes*; it never edits production code, tests, or claims, and it never decides a fix ships. That keeps the soft signal from ever weakening `green ⟺ spec satisfied`. A finding becomes a real change only by flowing through the hard loop (a candidate claim → `spec-test-author` writes the test) or `spec-patch` (which defers full verification to the next `spec-loop`) — both certify independently of this skill.
+The agent that **experiences** friction must never be the agent that **certifies** the fix. This skill *discovers* friction and *routes* it; it never **hand-edits** production code, tests, or claims itself, and it never certifies its own fix. That keeps the soft signal from ever weakening `green ⟺ spec satisfied`. A finding becomes a real change only by being **handed to an independent certifier**: a candidate claim → `spec-test-author` writes the test (hard loop), or a Lane-2 fix → `spec-patch`, which certifies via a test that was **red before and green after** and defers full adversarial verification to the next `spec-loop`. The Lane-2 auto-patch default does not break this invariant: this skill never writes the fix or its test by hand — it invokes `spec-patch`, whose red→green proof is the independent certification, and the next `spec-loop` reconciles it at full strength. What the skill must never do is *decide a Lane-1 product question* or *mark anything verified in the hard sense* on its own.
 
 This skill also **never gates a merge.** A satisfaction score gates *attention*, not shipping.
 
@@ -39,8 +39,10 @@ Frontmatter: `tags:` includes `scenario`; `links:` lists the claim zettels the j
   - *Rationale:* most friction is **structural** (deterministic — a missing command, a silent no-op), caught in one run and confirmed by targeted reproduction. The failure mode a second *journey* would guard against — a one-off fluke of the path — is rare; the failure mode we actually see is the driver **misreading** (bad input, undiscovered command), which the verifier's reproduction catches. And the strongest recurrence signal comes from **different scenarios** hitting the same root cause (two personas, one bug), which a broad suite gives for free — not from N runs of one journey.
 - `--harness <path>` — the project's scenario harness providing `up`/`seed`/`ssh`/`tui-*`/`down` (default: auto-detect, step 1).
 - `--library <name>` — zettel library override (same resolution as spec-test-gen).
-- `--live` — actually file proposals into the hard loop above the confidence threshold. **Default off (propose mode):** every finding becomes a draft `friction-proposal` bean only; nothing auto-flows. Graduate lanes to `--live` once their false-positive rate proves out.
-- `--threshold <frac>` — recurrence required for auto-flow under `--live`, as a **fraction of runs** so it's consistent at any N (default **0.6**, i.e. a majority; with the default 2 runs that means both, and a `recovered=false` high-severity event in even one run still surfaces as a *proposal* — the threshold gates only `--live` auto-flow, never whether a finding is reported).
+- **Auto-patch is graduated per lane (see Step 4).** **Lane 2** (small, unambiguous fixes) is **live by default**: a finding meeting the bar auto-flows to `spec-patch` (red→green fix committed, bean filed/updated). **Lane 1** (product-intent questions) is **never** auto — always a human bean. **Lane 3** (candidate claims) stays propose-only unless `--live` is passed. This default reflects a proven-out false-positive rate: the Step-3 verifier refutes bogus findings before they're ever filed, so the findings that survive to a lane are reliable. The escape hatches:
+  - `--propose` — force full propose mode: **every** finding (including Lane 2) stops at a draft `friction-proposal` bean, nothing auto-patches. Use when exploring a new scenario whose findings you don't trust yet, or to review a batch before letting it flow.
+  - `--live` — additionally graduate **Lane 3**: above threshold, candidate claims auto-flow into the hard loop (`spec-lock`). (Lane 2 is already live; `--live` does not change Lane 1.)
+- `--threshold <frac>` — recurrence required for auto-flow, as a **fraction of runs** so it's consistent at any N (default **0.6**, i.e. a majority; with the default 2 runs that means both, and a `recovered=false` high-severity event in even one run still surfaces as a *proposal* — the threshold gates only auto-flow, never whether a finding is reported).
 
 ## Step 0 — Resolve context
 
@@ -115,25 +117,27 @@ Match a surviving finding to an existing bean by **(scenario id + the affordance
 
 Then, for each surviving finding, by `candidate_lane`:
 
-- **Lane 1 — product-direction** (the spec is genuinely silent on *intent*; no deductive test could settle it): **always file a `friction-proposal` bean as a question for a human.** Never invent the product direction. Not subject to `--live` auto-flow.
-- **Lane 2 — small, unambiguous fix** (confusing error, missing obvious flag, silent no-op): file a `friction-proposal` bean. Under `--live` **and** recurrence ≥ `--threshold` **and** a clean single direction → additionally invoke `spec-patch` with the proposed change (red→green now; full reconciliation deferred to the next `spec-loop`).
-- **Lane 3 — larger / multi-claim gap**: file a `friction-proposal` bean carrying a **candidate claim** (drafted claim text + which zettel it belongs in). Under `--live` **and** recurrence ≥ `--threshold` → hand the candidate claim to the normal hard loop (it enters at `spec-lock`; `spec-test-author` — *not this skill* — writes the test). Below threshold → leave as a draft bean for human triage.
+- **Lane 1 — product-direction** (the spec is genuinely silent on *intent*; no deductive test could settle it): **always file a `friction-proposal` bean as a question for a human.** Never invent the product direction. **Never** auto-flows, in any mode — a product decision is not the skill's to make.
+- **Lane 2 — small, unambiguous fix** (confusing error, missing obvious flag, silent no-op): **live by default.** When recurrence ≥ `--threshold` **and** there is a **single, clean fix direction**, invoke `spec-patch` with the proposed change (red→green now, fix committed with its unreconciled marker; full reconciliation deferred to the next `spec-loop`) **and** file/update the `friction-proposal` bean to record what shipped. No merge gate — you review the patch commit and the bean afterward; `spec-patch` keeps it safe (a test that was red before and green after) and the next `spec-loop` reconciles it at full strength.
+  - **Guard — ambiguous fix direction stays a draft bean.** If the finding has more than one plausible fix, or the right fix is a judgment call (e.g. "surface the effective query" *vs* "change the scoping"), do **not** auto-patch — file the draft bean with the candidate directions for a human. Auto-patch is for findings where the fix writes itself; guessing past ambiguity is exactly what `spec-patch` forbids. (This is the lesson of the one deferred finding in review: a valid-looking bug with two candidate directions and no clear winner.)
+  - `--propose` suppresses the auto-patch — Lane 2 then stops at a draft bean like the others.
+- **Lane 3 — larger / multi-claim gap**: file a `friction-proposal` bean carrying a **candidate claim** (drafted claim text + which zettel it belongs in). **Propose-only by default.** Under `--live` **and** recurrence ≥ `--threshold` → hand the candidate claim to the normal hard loop (it enters at `spec-lock`; `spec-test-author` — *not this skill* — writes the test). Otherwise leave as a draft bean for human triage.
 
-Every `friction-proposal` bean is tagged `friction-proposal` and carries: **scenario id**, **the affordance at fault** (command/flag/screen + `kind`) — these two are its dedup identity — plus recurrence, evidence excerpt(s), proposed direction(s), and lane. In propose mode (default) **all** routing stops at the draft bean — review the batch, then re-run with `--live` (per lane) once trustworthy.
+Every `friction-proposal` bean is tagged `friction-proposal` and carries: **scenario id**, **the affordance at fault** (command/flag/screen + `kind`) — these two are its dedup identity — plus recurrence, evidence excerpt(s), proposed direction(s), and lane. **Default routing:** Lane 2 auto-patches (single clean direction, ≥ threshold), Lane 1 always waits for a human, Lane 3 waits unless `--live`. `--propose` forces everything to stop at draft beans — use it to review a batch from an untrusted scenario before letting it flow.
 
 ## Step 5 — Report
 
 ```
 spec-scenario-run — <scenario id | suite>
 ==========================================
-Harness: <path>   Runs: N (adaptive)   Mode: propose | live (threshold <frac>)
+Harness: <path>   Runs: N (adaptive)   Mode: default (L2 auto-patch) | +live (L3) | propose (threshold <frac>)
 
 Satisfaction: <goal-reached runs>/N   (suite: <avg> across <M> scenarios)
 
 Findings (verified):
   [L<lane>] <observed issue>   recurrence k/N   severity
      evidence: <excerpt>
-     → <proposed direction(s)>   ⇒ friction-proposal <bean-id> (new | updated existing) [+ spec-patch/candidate-claim if --live]
+     → <proposed direction(s)>   ⇒ friction-proposal <bean-id> (new | updated existing) [+ spec-patch <sha> (L2 auto) | candidate-claim → spec-lock (L3, --live) | draft: ambiguous direction]
 
 Proposals: <C> new, <U> updated existing, <R> reopened (regression)
 
@@ -143,11 +147,12 @@ Refuted (driver-error / not reproducible):
 Status: <N findings, M proposals filed, P auto-flowed (live)>
 ```
 
-End with the single most useful line: `<N> verified friction finding(s) — <M> proposals filed (review the friction-proposal beans).`
+End with the single most useful line: `<N> verified friction finding(s) — <P> auto-patched (review the commits), <M> draft proposal(s) for triage (review the friction-proposal beans).`
 
 ## What this skill must never do
 
-- Never edit production code, tests, or claims; never remove a `spec-patch` marker; never mark anything "verified" in the hard sense.
+- Never **hand-edit** production code, tests, or claims; never remove a `spec-patch` marker; never mark anything "verified" in the hard sense. (Lane-2 auto-patch is allowed, but only by *invoking* `spec-patch` — which writes its own red→green test — never by editing code/tests directly here.)
+- Never auto-patch a finding with an ambiguous or multi-direction fix — that requires guessing past ambiguity, which `spec-patch` forbids; file a draft bean for a human instead.
 - Never let the driver see the claims, the step list, or the scenario's "known friction" — that defeats discovery and the holdout separation.
 - Never report a finding without recurrence and a verbatim evidence excerpt, and never skip Step 3 (a friction finding that wasn't refutation-tested is not ready to propose).
 - Never gate a merge or auto-decide a Lane-1 product question.
