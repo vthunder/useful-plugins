@@ -35,11 +35,11 @@ Frontmatter: `tags:` includes `scenario`; `links:` lists the claim zettels the j
 ## Inputs
 
 - A scenario reference: a `scenario`-tagged zettel `id`, a file path, or `--all-scenarios` to run the whole suite.
-- `--runs <N>` — driver runs per scenario (default **3**). Recurrence (k/N) separates real friction from a one-off stumble.
+- `--runs <N>` — driver runs per scenario (default **2**, **adaptive**). Recurrence (k/N) separates real friction from a one-off stumble, but most friction is *structural* (deterministic — it appears in every run) and is fully caught at N=1; extra runs mainly buy confidence on *stochastic / path-finding* friction (did the agent stumble, or is the path genuinely hard). So default to 2 and **escalate to a 3rd run only when the first two disagree** — different `goal_reached` verdicts, or one surfaces a high-severity event the other didn't. A fixed `--runs <N>` disables the adaptive escalation and runs exactly N. Driver runs are the dominant cost (each is a full agent session, and more runs → more findings → more verifiers), so don't raise this without reason.
 - `--harness <path>` — the project's scenario harness providing `up`/`seed`/`ssh`/`tui-*`/`down` (default: auto-detect, step 1).
 - `--library <name>` — zettel library override (same resolution as spec-test-gen).
 - `--live` — actually file proposals into the hard loop above the confidence threshold. **Default off (propose mode):** every finding becomes a draft `friction-proposal` bean only; nothing auto-flows. Graduate lanes to `--live` once their false-positive rate proves out.
-- `--threshold <k/N>` — recurrence required for auto-flow under `--live` (default **3/5**, i.e. ≥60% of runs).
+- `--threshold <frac>` — recurrence required for auto-flow under `--live`, as a **fraction of runs** so it's consistent at any N (default **0.6**, i.e. a majority; with the default 2 runs that means both, and a `recovered=false` high-severity event in even one run still surfaces as a *proposal* — the threshold gates only `--live` auto-flow, never whether a finding is reported).
 
 ## Step 0 — Resolve context
 
@@ -48,7 +48,9 @@ Frontmatter: `tags:` includes `scenario`; `links:` lists the claim zettels the j
 - **Harness** — `--harness` → `scenario-sandbox.sh` at repo root → a `scenario_harness` key in `.claude/settings.json`/`CLAUDE.md`. The harness MUST expose: `up`, `seed`, `ssh "<cmd>"`, `tui-open/tui-keys/tui-screen/tui-close`, `down`. If none is found, stop and report what's missing (the harness is a prerequisite — see the digital-twin/harness bean).
 - Record `runs = N`.
 
-## Step 1 — Drive the scenario, N times (the driver agent)
+## Step 1 — Drive the scenario (the driver agent)
+
+Run the driver **twice by default**, then apply the adaptive rule: if the two runs **agree** (same `goal_reached`, no high-severity event present in one but absent in the other), stop at 2. If they **disagree**, run a **3rd** to break the tie. An explicit `--runs <N>` skips the adaptive rule and runs exactly N.
 
 For each run `1..N`, in sequence (a single-instance harness serializes; parallelize only if the harness supports concurrent instances):
 
@@ -89,7 +91,7 @@ For each candidate finding, spawn a **verifier** (distinct from driver and judge
 
 - **Did the driver feed valid input?** Compare the driver's invocations against how real inputs are produced (e.g. the project's real seed/import path, canonical reference forms). *A hand-built or malformed input that "failed" is not a product finding.* (This is the F1 lesson: a plausible high-severity finding turned out to be the driver using the wrong sprint-key format.)
 - **Is the expected behavior actually specified, or did the driver invent an expectation?**
-- **Is it reproducible (k/N ≥ 2), or a one-off stumble?**
+- **Is it reproducible, or a one-off stumble?** A *structural* finding (a missing command, a silent no-op, a wrong output) is real even if it appeared in only one run — the other run may simply have taken a path that never reached it. Refute as "one-off" only when the friction looks like the agent fumbling a path that otherwise works, not when it's a deterministic defect seen once.
 
 Drop findings the verifier refutes (record them as "investigated, not real" — don't silently discard). Keep the rest.
 
@@ -108,7 +110,7 @@ Every `friction-proposal` bean is tagged `friction-proposal` and carries: scenar
 ```
 spec-scenario-run — <scenario id | suite>
 ==========================================
-Harness: <path>   Runs: N   Mode: propose | live (threshold k/N)
+Harness: <path>   Runs: N (adaptive)   Mode: propose | live (threshold <frac>)
 
 Satisfaction: <goal-reached runs>/N   (suite: <avg> across <M> scenarios)
 
