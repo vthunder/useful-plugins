@@ -116,20 +116,24 @@ Resolve the workflow script path: read `~/.claude/plugins/installed_plugins.json
   "zettels_file": "<abs path to zettels.json>",
   "zettel_count": <N>,
   "library_path": "<resolved library path>",
-  "test_dir": "<test dir if known, else omit>"
+  "test_dir": "<test dir if known, else omit>",
+  "base_ref": "<the `--since` ref from Step 1 (default HEAD)>"
 }
 ```
 
+`base_ref` lets remediation be **delta-scoped**: it diffs each changed zettel against that ref to decide, per confirmed-missing claim, whether the claim is NEW/changed in this revision (→ stub it) or PRE-EXISTING coverage debt the critics surfaced by re-reading the whole zettel (→ report as a backlog, never stub). This is what keeps a small edit to a long-lived zettel from dumping a pile of stubs you'd have to revert.
+
 > **Uniform file contract.** Every spec-loop workflow takes its list as a *file path + count*, never an inline array — so you never have to judge payload size or split invocations, and the large per-item data never travels through the prompt (each agent reads only the entry it needs). Always write the file, regardless of how few items there are.
 
-The workflow runs `spec-test-gen` on all changed zettels in parallel, retries any that fail to stamp `tests:` frontmatter, then runs an **always-on completeness check** (two blind critics re-enumerate each zettel's testable claims and a reconciler keeps only the claims BOTH independently flag as unstubbed — a 2/2 vote). Any confirmed-missing claim is remediated (stubs re-generated) and re-verified once. It returns:
+The workflow runs `spec-test-gen` on all changed zettels in parallel, retries any that fail to stamp `tests:` frontmatter, then runs an **always-on completeness check** (two blind critics re-enumerate each zettel's testable claims and a reconciler keeps only the claims BOTH independently flag as unstubbed — a 2/2 vote). It then **delta-scopes remediation**: each confirmed-missing claim is classified (via the `base_ref` diff) as NEW/changed → stubbed, or PRE-EXISTING → reported as backlog, never stubbed. (The completeness rubric also skips **non-normative** text — sections marked `(presentational)`/`(advisory)`/`(non-normative)`/`(implementation-note)` and blockquote asides — so descriptive prose never becomes a claim.) It returns:
 - `results` — per-zettel summary (stubs written, test files, covered flag)
 - `uncovered` — list of zettel paths that still lack `tests:` frontmatter after retry
 - `total_stubs_written`, `total_stubs_updated`
 - `completeness` — per-zettel post-remediation verdict (`confirmed_missing`, `confirmed_spurious`)
-- `incomplete` — zettels with claims STILL missing a stub after remediation: `[{ zettel_path, missing_claims }]`. Each missing claim must be **labeled blocking or advisory** (see Step 4); only **blocking** items are a hard stop.
+- `incomplete` — zettels where a **NEW/changed** claim is STILL missing a test after remediation: `[{ zettel_path, missing_claims }]`. These are the **blocking** items (the workflow already filtered out pre-existing ones).
+- `pre_existing_gaps` — pre-existing coverage debt the critics surfaced but this revision did not touch: `[{ zettel_path, claims }]`. **Non-blocking** — report as a backlog; never stubbed.
 - `spurious_stubs` — stubs that map to no current claim (review items, non-blocking)
-- `total_missing_remediated` — count of missing claims the completeness pass recovered
+- `total_missing_remediated` — count of NEW claims the completeness pass stubbed
 
 Wait for the workflow to complete before proceeding.
 
@@ -139,30 +143,26 @@ Inspect the workflow result:
 - Any path in `uncovered` represents a zettel that failed to get `tests:` frontmatter after retry. Report it and continue (do not block the commit on this alone).
 - All other zettels in `results` with `covered: true` are done.
 
-**Label each incomplete item before gating.** The completeness critics re-enumerate ALL claims in a zettel, so editing one claim can surface pre-existing untested claims the change never touched. Label each item in `incomplete`:
-- **blocking** — the claim is NEW or CHANGED in this revision: a genuine coverage hole the change introduced.
-- **advisory** — a pre-existing untested claim surfaced incidentally; the change didn't touch it.
+**The new-vs-pre-existing split is already done by the workflow** (delta-scoped against `base_ref`): `incomplete` holds only NEW/changed claims still missing a test (the blocking set), and `pre_existing_gaps` holds pre-existing coverage debt (non-blocking backlog). You do not re-label them by hand.
 
-New-vs-pre-existing is determined by whether the claim text is new or changed in the revision being locked — check the git diff of the zettel since the base ref (`<ref>` from Step 1).
-
-**Only blocking items are a hard gate.** If any **blocking** item exists, the completeness critics confirmed (2/2) a new/changed testable claim with no test even after remediation — a silent coverage hole the loop exists to prevent. **Do not commit and do not proceed to spec-test-author.** Stop and surface each blocking item:
+**`incomplete` is a hard gate.** If it is non-empty, the completeness critics confirmed (2/2) a NEW/changed testable claim with no test even after remediation — a silent coverage hole the loop exists to prevent. **Do not commit and do not proceed to spec-test-author.** Stop and surface each:
 
 ```
 ⛔ COMPLETENESS GATE — N new/changed testable claim(s) have no test after remediation:
   <zettel-id> (<zettel_path>)
-    - <missing claim description>  [why testable: <category>]
+    - <missing claim description>
   ...
 Your call per item: (a) add the missing test stub manually (or fix spec-test-gen's conventions so it can) and re-run spec-lock, or
-(b) revise the zettel so the claim is no longer a standalone testable assertion, or
+(b) revise the zettel so the claim is no longer a standalone testable assertion (e.g. mark the section `(presentational)`/`(non-normative)` so the enumerator skips it), or
 (c) explicitly accept it as a known coverage gap and re-run spec-lock with the claim removed from scope.
 ```
 
 This mirrors the other spec-loop gates: the skill stops and lets the human decide; it does not silently ship an uncovered claim. Wait for the user's decision — do not proceed on your own.
 
-**Advisory items do not block.** Report them under "pre-existing coverage holes (non-blocking)" so the user can backfill later, and continue past the gate:
+**`pre_existing_gaps` do not block and are NOT auto-stubbed.** Report them under "pre-existing coverage holes (non-blocking)" so the user can backfill later (deliberately), and continue past the gate:
 
 ```
-Pre-existing coverage holes (non-blocking) — untested claims the change didn't touch:
+Pre-existing coverage holes (non-blocking) — untested claims this revision didn't touch:
   <zettel-id> (<zettel_path>)
     - <missing claim description>
 ```

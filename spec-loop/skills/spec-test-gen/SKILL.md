@@ -54,6 +54,8 @@ A **testable claim** is any assertion that can be verified by running code. Scan
 - Prose restatements of architecture without concrete behavior
 - Aesthetic or style guidance
 
+**Non-normative — never enumerate as a claim, even if it reads testable:** text the author explicitly marked descriptive. A section whose heading carries a `(presentational)`, `(advisory)`, `(non-normative)`, or `(implementation-note)` marker, and any blockquote (`>`) aside, are descriptive — they document, they don't assert. Skip them entirely. (This lets authors keep prose like a color palette or an implementation detail in the spec without it generating brittle or out-of-place claim-tests. The `scenario` tag does the same thing at the whole-zettel level; these markers do it per section.)
+
 For each testable claim, output:
 ```
 Claim N: <one-sentence description of what to assert>

@@ -28,7 +28,11 @@ function parseArgs(a) {
   }
 }
 
-const { zettels_file, zettel_count, library_path, test_dir } = parseArgs(args)
+const { zettels_file, zettel_count, library_path, test_dir, base_ref } = parseArgs(args)
+// Ref the changed zettels are diffed against, so remediation can tell which
+// confirmed-missing claims are NEW/changed in this revision (stub those) vs
+// PRE-EXISTING (report as a backlog, never auto-stub). Defaults to HEAD.
+const baseRef = base_ref || 'HEAD'
 
 if (!zettels_file || !zettel_count) {
   log('No zettels_file/zettel_count passed — nothing to do.')
@@ -114,7 +118,8 @@ const RECONCILE_SCHEMA = {
 }
 
 const RUBRIC = `Testable = a command/subcommand exists & is callable; a flag/option is accepted; a DB column/table exists with a stated name/type; a specific input produces a specific output/return value; a state transition (state A + action B → state C); an HTTP endpoint returns a specific status/response shape; a config key controls a specific behavior; a constraint is enforced (uniqueness, foreign key, length limit); an error condition produces a specific message/code.
-NOT testable = design rationale (why), human-workflow prose, aspirational/future scope, architecture restatement without concrete behavior, aesthetic/style guidance.`
+NOT testable = design rationale (why), human-workflow prose, aspirational/future scope, architecture restatement without concrete behavior, aesthetic/style guidance.
+NON-NORMATIVE (never derive a claim from it, even if it reads testable) = any text the author explicitly marked descriptive: a section whose heading carries a \`(presentational)\`, \`(advisory)\`, \`(non-normative)\`, or \`(implementation-note)\` marker, and any blockquote (\`>\`) aside. These are out of scope for claim enumeration entirely.\``
 
 const base = p => p.split('/').pop()
 const emptyVerdict = path => ({ zettel_path: path, confirmed_missing: [], confirmed_spurious: [] })
@@ -242,42 +247,72 @@ const completeness = (await pipeline(
   r => verifyCompleteness(r.zettel_path, filesByPath[r.zettel_path], 'Completeness')
 )).filter(Boolean)
 
-// ── Phase 4: remediate confirmed-missing claims, then re-verify residual ──
+// ── Phase 4: remediate — but DELTA-SCOPED. Only claims that are NEW/changed in
+// this revision get stubbed; PRE-EXISTING confirmed-missing claims (old, untouched
+// coverage debt the critics surfaced by re-reading the whole zettel) are reported
+// as a backlog and NEVER auto-stubbed — so a small edit to a long-lived zettel
+// doesn't dump a pile of stubs to manually revert. New-vs-pre-existing is decided
+// per claim from the zettel's diff against baseRef.
 const needsFix = completeness.filter(c => (c.confirmed_missing || []).length > 0)
+const preExistingGaps = []   // { zettel_path, claims: [{ description }] }
+let totalStubbedNew = 0
 
 if (needsFix.length > 0) {
   const totalMissing = needsFix.reduce((s, c) => s + c.confirmed_missing.length, 0)
-  log(`Remediation: ${totalMissing} confirmed-missing claim(s) across ${needsFix.length} zettel(s) — re-generating stubs`)
+  log(`Remediation: ${totalMissing} confirmed-missing claim(s) across ${needsFix.length} zettel(s) — stubbing NEW/changed ones, reporting pre-existing as backlog (base ${baseRef})`)
+
+  const REMEDIATE_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      test_files: { type: 'array', items: { type: 'string' } },
+      stubbed_new: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { description: { type: 'string' } }, required: ['description'] } },
+      pre_existing: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { description: { type: 'string' } }, required: ['description'] } },
+      still_missing_new: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { description: { type: 'string' }, reason: { type: 'string' } }, required: ['description'] } },
+    },
+    required: ['test_files', 'stubbed_new', 'pre_existing', 'still_missing_new'],
+  }
 
   const remediated = await pipeline(
     needsFix,
     async c => {
-      const regen = await agent(
-        `Run spec-test-gen on ${c.zettel_path} to ADD coverage for these specific testable claims that were independently confirmed MISSING by two critics:
+      const reg = await agent(
+        `Two critics independently confirmed these testable claims have NO test in ${c.zettel_path}:
 ${c.confirmed_missing.map((m, i) => `  ${i + 1}. ${m.description}`).join('\n')}
 
-Library path: ${library_path}
-${test_dir ? `Test directory override: ${test_dir}` : 'Use auto-detected test directory.'}
+STEP 1 — classify each claim as NEW or PRE-EXISTING:
+- Run \`git diff ${baseRef} -- ${c.zettel_path}\` and read the zettel to see what text this revision added/changed.
+- NEW = the claim's supporting claim/prose text was ADDED or CHANGED in this revision.
+- PRE-EXISTING = the claim's text was already in the zettel before this revision (untouched by this edit) — old coverage debt.
+- If you genuinely cannot tell, treat it as NEW (safer to cover than to silently skip).
 
-Write a test stub for each missing claim (a real test or an #[ignore]/todo stub as appropriate to the project conventions). Never delete existing tests. Re-stamp the zettel's tests: frontmatter to include any new files. Return structured output.`,
-        { label: `remediate:${base(c.zettel_path)}`, phase: 'Remediate', schema: TEST_GEN_SCHEMA }
+STEP 2 — act:
+- For each NEW claim: write a test stub (a real test or an #[ignore]/todo stub per project conventions) and re-stamp the zettel's tests: frontmatter to include any new files. List these in \`stubbed_new\`. If you truly could not write a stub for a NEW claim, list it in \`still_missing_new\` with a reason.
+- For each PRE-EXISTING claim: write NOTHING — just list it in \`pre_existing\`. It is reported as a backlog, not part of this change.
+
+Never delete existing tests. Library path: ${library_path}. ${test_dir ? `Test directory: ${test_dir}.` : 'Use the auto-detected test directory.'}
+Return structured output.`,
+        { label: `remediate:${base(c.zettel_path)}`, phase: 'Remediate', schema: REMEDIATE_SCHEMA }
       )
-      const newFiles = regen && regen.test_files && regen.test_files.length
-        ? regen.test_files
-        : filesByPath[c.zettel_path]
-      // Re-verify residual after the fix
-      const residual = await verifyCompleteness(c.zettel_path, newFiles, 'Remediate')
-      return { zettel_path: c.zettel_path, regen, residual }
+      return { zettel_path: c.zettel_path, reg }
     }
   )
 
-  // Replace initial verdicts with post-remediation residual verdicts
-  const residualByPath = Object.fromEntries(
-    remediated.filter(Boolean).map(r => [r.zettel_path, r.residual])
-  )
-  for (let i = 0; i < completeness.length; i++) {
-    const path = completeness[i].zettel_path
-    if (residualByPath[path]) completeness[i] = residualByPath[path]
+  // Fold back: a zettel's residual incomplete = only NEW claims still missing;
+  // its pre-existing claims become backlog (they never gate, never get stubs).
+  for (const r of remediated.filter(Boolean)) {
+    const stillNew = (r.reg && r.reg.still_missing_new) || []
+    const pre = (r.reg && r.reg.pre_existing) || []
+    totalStubbedNew += ((r.reg && r.reg.stubbed_new) || []).length
+    const idx = completeness.findIndex(c => c.zettel_path === r.zettel_path)
+    if (idx >= 0) {
+      completeness[idx] = {
+        zettel_path: r.zettel_path,
+        confirmed_missing: stillNew,
+        confirmed_spurious: completeness[idx].confirmed_spurious || [],
+      }
+    }
+    if (pre.length) preExistingGaps.push({ zettel_path: r.zettel_path, claims: pre })
   }
 }
 
@@ -285,7 +320,11 @@ const incomplete = completeness.filter(c => (c.confirmed_missing || []).length >
 const spurious = completeness.filter(c => (c.confirmed_spurious || []).length > 0)
 
 if (incomplete.length > 0) {
-  log(`⛔ ${incomplete.length} zettel(s) still have confirmed-missing claims after remediation — hard stop for spec-lock`)
+  log(`⛔ ${incomplete.length} zettel(s) have NEW/changed claims still missing a test after remediation — hard stop for spec-lock`)
+}
+if (preExistingGaps.length > 0) {
+  const n = preExistingGaps.reduce((s, g) => s + g.claims.length, 0)
+  log(`ℹ ${n} pre-existing coverage gap(s) across ${preExistingGaps.length} zettel(s) reported as backlog (not stubbed)`)
 }
 
 return {
@@ -296,6 +335,9 @@ return {
   // Completeness verification results:
   completeness,
   incomplete: incomplete.map(c => ({ zettel_path: c.zettel_path, missing_claims: c.confirmed_missing })),
+  // Pre-existing coverage debt the critics surfaced but that this revision did NOT
+  // touch — reported as a backlog, never auto-stubbed. Non-blocking.
+  pre_existing_gaps: preExistingGaps,
   spurious_stubs: spurious.map(c => ({ zettel_path: c.zettel_path, stubs: c.confirmed_spurious })),
-  total_missing_remediated: needsFix.reduce((s, c) => s + c.confirmed_missing.length, 0),
+  total_missing_remediated: totalStubbedNew,
 }
